@@ -4,6 +4,10 @@ import { BottomNav, NavTab } from './layout/BottomNav';
 import { Sidebar } from './layout/Sidebar';
 import { StatCards } from './dashboard/StatCards';
 import { QuickActions } from './dashboard/QuickActions';
+import { ChitFilterSelector } from './dashboard/ChitFilterSelector';
+import { CollectionDonutChart } from './dashboard/CollectionDonutChart';
+import { CashflowBarChart } from './dashboard/CashflowBarChart';
+import { DefaulterAgingBuckets } from './dashboard/DefaulterAgingBuckets';
 import { PendingCollectionsList } from './dashboard/PendingCollectionsList';
 import { ActiveChitsOverview } from './dashboard/ActiveChitsOverview';
 import { ChitGroupsView } from './views/ChitGroupsView';
@@ -22,7 +26,9 @@ import {
   fetchMembers,
   fetchInstallments,
   fetchHealth,
+  fetchAnalytics,
   DashboardSummary,
+  AnalyticsData,
   ChitGroup,
   Member,
   Installment,
@@ -34,11 +40,11 @@ interface AuthenticatedViewProps {
 
 export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
-  const [dbStatus, setDbStatus] = useState<'connected' | 'checking' | 'error'>('checking');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedChitFilter, setSelectedChitFilter] = useState<string>('ALL');
 
   // Core Data
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [groups, setGroups] = useState<ChitGroup[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
@@ -51,11 +57,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   const [isNewMemberModalOpen, setIsNewMemberModalOpen] = useState(false);
 
   const loadAllData = async () => {
-    setIsRefreshing(true);
     try {
-      const health = await fetchHealth();
-      if (health.status === 'ok') setDbStatus('connected');
-
       const [sumData, grpData, memData, instData] = await Promise.all([
         fetchDashboardSummary().catch(() => null),
         fetchChitGroups().catch(() => []),
@@ -69,9 +71,15 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       setInstallments(instData);
     } catch (err) {
       console.error('Failed to load portal data:', err);
-      setDbStatus('error');
-    } finally {
-      setIsRefreshing(false);
+    }
+  };
+
+  const loadAnalytics = async (filterId: string) => {
+    try {
+      const data = await fetchAnalytics(filterId);
+      setAnalyticsData(data);
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
     }
   };
 
@@ -79,12 +87,21 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
     loadAllData();
   }, []);
 
+  useEffect(() => {
+    loadAnalytics(selectedChitFilter);
+  }, [selectedChitFilter]);
+
   const handleOpenPayment = (inst?: Installment) => {
     setSelectedInstallment(inst || null);
     setIsPaymentModalOpen(true);
   };
 
   const pendingCount = installments.filter((i) => i.status !== 'PAID').length;
+
+  const displayedInstallments =
+    selectedChitFilter === 'ALL'
+      ? installments
+      : installments.filter((i) => i.chit_group_id === selectedChitFilter);
 
   return (
     <div className="min-h-screen flex flex-col pb-16 md:pb-0">
@@ -105,6 +122,13 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
           {/* Dashboard Home View */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
+              {/* Chit Filter Selector (All Chits or Any Single Chit) */}
+              <ChitFilterSelector
+                groups={groups}
+                selectedGroupId={selectedChitFilter}
+                onSelectGroup={(id) => setSelectedChitFilter(id)}
+              />
+
               {/* Stat Cards */}
               <StatCards
                 summary={summary}
@@ -118,7 +142,45 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
                 onOpenNewGroup={() => setIsNewGroupModalOpen(true)}
               />
 
-              {/* Multi-column Layout for Desktop / Stacked for Mobile */}
+              {/* Visualizations Section: Charts 1 and 2 */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Chart 1: Monthly Collection Health (Donut / Ring Chart) */}
+                <div className="lg:col-span-5">
+                  <CollectionDonutChart
+                    collected={
+                      analyticsData
+                        ? analyticsData.collection.collected
+                        : summary?.totalCollected || 0
+                    }
+                    pending={
+                      analyticsData
+                        ? analyticsData.collection.pending
+                        : summary?.totalPendingDues || 0
+                    }
+                    percentage={analyticsData ? analyticsData.collection.percentage : 0}
+                    title={
+                      selectedChitFilter === 'ALL'
+                        ? 'Monthly Collection Health (Consolidated)'
+                        : 'Scheme Collection Health'
+                    }
+                  />
+                </div>
+
+                {/* Chart 2: Cash Inflow vs. Winner Payouts (Dual Bar Chart) */}
+                <div className="lg:col-span-7">
+                  <CashflowBarChart data={analyticsData?.cashflow || []} />
+                </div>
+              </div>
+
+              {/* Chart 6: Defaulters Aging & Risk Buckets */}
+              <DefaulterAgingBuckets
+                bucket1={analyticsData?.defaulters.bucket1 || { count: 0, amount: 0 }}
+                bucket2={analyticsData?.defaulters.bucket2 || { count: 0, amount: 0 }}
+                bucket3={analyticsData?.defaulters.bucket3 || { count: 0, amount: 0 }}
+                defaultersList={analyticsData?.defaulters.list || []}
+              />
+
+              {/* Schemes Overview & Urgent Collections */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left Column: Active Chits Overview */}
                 <div className="lg:col-span-6 space-y-6">
@@ -132,7 +194,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
                 {/* Right Column: Pending Collections with 1-Tap WhatsApp */}
                 <div className="lg:col-span-6 space-y-6">
                   <PendingCollectionsList
-                    installments={installments}
+                    installments={displayedInstallments}
                     onCollect={(inst) => handleOpenPayment(inst)}
                     onViewAll={() => setActiveTab('payments')}
                   />
@@ -185,7 +247,10 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       <RecordPaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        onSuccess={loadAllData}
+        onSuccess={() => {
+          loadAllData();
+          loadAnalytics(selectedChitFilter);
+        }}
         installments={installments}
         selectedInstallment={selectedInstallment}
       />
@@ -193,7 +258,10 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       <RecordAuctionModal
         isOpen={isAuctionModalOpen}
         onClose={() => setIsAuctionModalOpen(false)}
-        onSuccess={loadAllData}
+        onSuccess={() => {
+          loadAllData();
+          loadAnalytics(selectedChitFilter);
+        }}
         groups={groups}
         members={members}
       />
@@ -201,13 +269,19 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       <NewGroupModal
         isOpen={isNewGroupModalOpen}
         onClose={() => setIsNewGroupModalOpen(false)}
-        onSuccess={loadAllData}
+        onSuccess={() => {
+          loadAllData();
+          loadAnalytics(selectedChitFilter);
+        }}
       />
 
       <NewMemberModal
         isOpen={isNewMemberModalOpen}
         onClose={() => setIsNewMemberModalOpen(false)}
-        onSuccess={loadAllData}
+        onSuccess={() => {
+          loadAllData();
+          loadAnalytics(selectedChitFilter);
+        }}
       />
     </div>
   );

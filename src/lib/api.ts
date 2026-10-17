@@ -88,6 +88,41 @@ export async function fetchDashboardSummary(): Promise<DashboardSummary> {
   return res.json();
 }
 
+export interface AnalyticsData {
+  collection: {
+    collected: number;
+    pending: number;
+    totalDue: number;
+    percentage: number;
+  };
+  cashflow: Array<{
+    month: string;
+    inflow: number;
+    outflow: number;
+  }>;
+  defaulters: {
+    bucket1: { count: number; amount: number };
+    bucket2: { count: number; amount: number };
+    bucket3: { count: number; amount: number };
+    list: Array<{
+      memberId: string;
+      memberName: string;
+      phone: string;
+      groupName: string;
+      unpaidCount: number;
+      pendingAmount: number;
+      riskLevel: 'MILD' | 'MODERATE' | 'CRITICAL';
+    }>;
+  };
+}
+
+export async function fetchAnalytics(chitGroupId?: string): Promise<AnalyticsData> {
+  const query = chitGroupId && chitGroupId !== 'ALL' ? `?chit_group_id=${chitGroupId}` : '';
+  const res = await fetch(`/api/analytics${query}`);
+  if (!res.ok) throw new Error('Failed to fetch analytics');
+  return res.json();
+}
+
 export async function fetchChitGroups(): Promise<ChitGroup[]> {
   const res = await fetch('/api/chit-groups');
   if (!res.ok) throw new Error('Failed to fetch chit groups');

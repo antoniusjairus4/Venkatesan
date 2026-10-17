@@ -44,6 +44,164 @@ apiRouter.get('/dashboard-summary', async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// Analytics & Visualizations (Charts 1, 2, and 6)
+// Supports optional filter: ?chit_group_id=UUID
+// ------------------------------------------------------------
+apiRouter.get('/analytics', async (req, res) => {
+  try {
+    const { chit_group_id } = req.query;
+    const isSpecificGroup = chit_group_id && chit_group_id !== 'ALL';
+
+    // 1. Collection Status (Donut Chart)
+    const collectionQuery = isSpecificGroup
+      ? sql`
+          SELECT 
+            COALESCE(SUM(paid_amount), 0)::numeric as collected,
+            COALESCE(SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END), 0)::numeric as pending
+          FROM installments
+          WHERE chit_group_id = ${chit_group_id};
+        `
+      : sql`
+          SELECT 
+            COALESCE(SUM(paid_amount), 0)::numeric as collected,
+            COALESCE(SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END), 0)::numeric as pending
+          FROM installments;
+        `;
+    const [collRes] = await collectionQuery;
+    const collected = Number(collRes?.collected || 0);
+    const pending = Number(collRes?.pending || 0);
+    const totalDue = collected + pending;
+    const percentage = totalDue > 0 ? Math.round((collected / totalDue) * 100) : 0;
+
+    // 2. Cash Inflow vs Outflow by Month (Dual Bar Chart)
+    const monthsData = [];
+    for (let m = 1; m <= 6; m++) {
+      const inflowQuery = isSpecificGroup
+        ? sql`
+            SELECT COALESCE(SUM(pt.amount_paid), 0)::numeric as total
+            FROM payment_transactions pt
+            JOIN installments i ON pt.installment_id = i.id
+            WHERE i.month_number = ${m} AND i.chit_group_id = ${chit_group_id};
+          `
+        : sql`
+            SELECT COALESCE(SUM(pt.amount_paid), 0)::numeric as total
+            FROM payment_transactions pt
+            JOIN installments i ON pt.installment_id = i.id
+            WHERE i.month_number = ${m};
+          `;
+
+      const outflowQuery = isSpecificGroup
+        ? sql`
+            SELECT COALESCE(SUM(payout_amount), 0)::numeric as total
+            FROM auctions
+            WHERE month_number = ${m} AND chit_group_id = ${chit_group_id};
+          `
+        : sql`
+            SELECT COALESCE(SUM(payout_amount), 0)::numeric as total
+            FROM auctions
+            WHERE month_number = ${m};
+          `;
+
+      const [[inflowRes], [outflowRes]] = await Promise.all([inflowQuery, outflowQuery]);
+      const inflow = Number(inflowRes?.total || 0);
+      const outflow = Number(outflowRes?.total || 0);
+
+      monthsData.push({
+        month: `M${m}`,
+        inflow,
+        outflow,
+      });
+    }
+
+    // 3. Defaulter Aging & Risk Buckets (Chart 6)
+    const defaultersQuery = isSpecificGroup
+      ? sql`
+          SELECT 
+            m.id as member_id,
+            m.name as member_name,
+            m.phone as phone,
+            g.name as group_name,
+            COUNT(i.id)::int as unpaid_count,
+            SUM(i.net_due_amount - i.paid_amount)::numeric as pending_amount
+          FROM installments i
+          JOIN members m ON i.member_id = m.id
+          JOIN chit_groups g ON i.chit_group_id = g.id
+          WHERE i.status != 'PAID' AND i.chit_group_id = ${chit_group_id}
+          GROUP BY m.id, m.name, m.phone, g.name
+          ORDER BY unpaid_count DESC, pending_amount DESC;
+        `
+      : sql`
+          SELECT 
+            m.id as member_id,
+            m.name as member_name,
+            m.phone as phone,
+            g.name as group_name,
+            COUNT(i.id)::int as unpaid_count,
+            SUM(i.net_due_amount - i.paid_amount)::numeric as pending_amount
+          FROM installments i
+          JOIN members m ON i.member_id = m.id
+          JOIN chit_groups g ON i.chit_group_id = g.id
+          WHERE i.status != 'PAID'
+          GROUP BY m.id, m.name, m.phone, g.name
+          ORDER BY unpaid_count DESC, pending_amount DESC;
+        `;
+
+    const defaulterRows = await defaultersQuery;
+
+    let bucket1Count = 0;
+    let bucket1Amount = 0;
+    let bucket2Count = 0;
+    let bucket2Amount = 0;
+    let bucket3Count = 0;
+    let bucket3Amount = 0;
+
+    const defaultersList = defaulterRows.map((r) => {
+      const unpaidCount = Number(r.unpaid_count);
+      const pendingAmt = Number(r.pending_amount);
+
+      if (unpaidCount === 1) {
+        bucket1Count++;
+        bucket1Amount += pendingAmt;
+      } else if (unpaidCount === 2) {
+        bucket2Count++;
+        bucket2Amount += pendingAmt;
+      } else {
+        bucket3Count++;
+        bucket3Amount += pendingAmt;
+      }
+
+      return {
+        memberId: r.member_id,
+        memberName: r.member_name,
+        phone: r.phone,
+        groupName: r.group_name,
+        unpaidCount,
+        pendingAmount: pendingAmt,
+        riskLevel: unpaidCount >= 3 ? 'CRITICAL' : unpaidCount === 2 ? 'MODERATE' : 'MILD',
+      };
+    });
+
+    res.json({
+      collection: {
+        collected,
+        pending,
+        totalDue,
+        percentage,
+      },
+      cashflow: monthsData,
+      defaulters: {
+        bucket1: { count: bucket1Count, amount: bucket1Amount },
+        bucket2: { count: bucket2Count, amount: bucket2Amount },
+        bucket3: { count: bucket3Count, amount: bucket3Amount },
+        list: defaultersList,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
 // Chit Groups
 // ------------------------------------------------------------
 apiRouter.get('/chit-groups', async (req, res) => {

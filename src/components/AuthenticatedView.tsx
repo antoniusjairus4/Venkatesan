@@ -87,7 +87,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   const pendingCount = installments.filter((i) => i.status !== 'PAID').length;
 
   return (
-    <div className="min-h-screen app-bg-mobile sm:app-bg-desktop flex flex-col pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col pb-16 md:pb-0">
       {/* Top Header */}
       <Header
         onLogout={onLogout}

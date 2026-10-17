@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { AuthenticatedView } from './components/AuthenticatedView';
+import { StaticBackground } from './components/layout/StaticBackground';
 import { getSession } from './lib/auth';
 
 export const App: React.FC = () => {
@@ -24,6 +25,9 @@ export const App: React.FC = () => {
 
   return (
     <>
+      {/* Permanent Static Background for Mobile and Desktop viewports */}
+      <StaticBackground />
+
       {isAuthenticated ? (
         <AuthenticatedView onLogout={() => setIsAuthenticated(false)} />
       ) : (
@@ -34,4 +38,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

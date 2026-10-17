@@ -35,7 +35,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 app-bg-mobile sm:app-bg-desktop relative">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 relative">
       {/* Semi-transparent soft ambient layer to enhance readability */}
       <div className="absolute inset-0 bg-[#FAFBF8]/20 sm:bg-transparent pointer-events-none" />
 

@@ -89,12 +89,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   return (
     <div className="min-h-screen flex flex-col pb-16 md:pb-0">
       {/* Top Header */}
-      <Header
-        onLogout={onLogout}
-        onRefresh={loadAllData}
-        isRefreshing={isRefreshing}
-        dbStatus={dbStatus}
-      />
+      <Header onLogout={onLogout} />
 
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
         {/* Desktop Sidebar */}

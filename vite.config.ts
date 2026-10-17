@@ -8,8 +8,8 @@ export default defineConfig({
     {
       name: 'api-server',
       async configureServer(server) {
-        const { apiRouter } = await import('./src/server/api.mjs');
-        server.middlewares.use('/api', apiRouter);
+        const { app } = await import('./src/server/app.mjs');
+        server.middlewares.use(app);
       },
     },
   ],

@@ -24,7 +24,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       icon: CreditCard,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
-    { id: 'auctions' as NavTab, label: 'Yelam', icon: Hammer },
+    { id: 'auctions' as NavTab, label: 'Auctions', icon: Hammer },
   ];
 
   return (

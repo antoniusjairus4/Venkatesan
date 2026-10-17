@@ -93,10 +93,10 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Conduct Monthly Yelam (Auction)
+                Enter Monthly Auction Result
               </h3>
               <p className="text-[11px] text-slate-500">
-                Rules 4 & 5: Dynamic auction discount & dividend distribution
+                Enter offline auction discount to compute dividends and payouts
               </p>
             </div>
           </div>
@@ -154,7 +154,7 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
           {/* Winning Member */}
           <div>
             <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-              Winning Bidder (Prized Member)
+              Prized Subscriber (Winning Member)
             </label>
             <select
               value={winningMemberId}
@@ -169,13 +169,13 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
             </select>
           </div>
 
-          {/* Auction Hammer Discount Input */}
+          {/* Auction Discount Input */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                Hammer / Bid Discount Amount (₹)
+                Offline Auction Discount Amount (₹)
               </label>
-              <span className="text-[10px] text-slate-400">Rule 4: Dynamic Monthly</span>
+              <span className="text-[10px] text-slate-400">Recorded Amount</span>
             </div>
             <input
               type="number"
@@ -255,7 +255,7 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
               disabled={submitting}
               className="w-full py-3 px-4 bg-forest-700 hover:bg-forest-800 text-white font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {submitting ? 'Applying Auction...' : 'Confirm & Apply Yelam Results'}
+              {submitting ? 'Saving Record...' : 'Save Auction Record & Calculate Dues'}
             </button>
           </div>
         </form>

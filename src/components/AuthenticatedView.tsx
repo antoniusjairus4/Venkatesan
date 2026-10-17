@@ -98,7 +98,6 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
           onSelectTab={setActiveTab}
           pendingCount={pendingCount}
           onOpenRecordPayment={() => handleOpenPayment()}
-          onOpenAuction={() => setIsAuctionModalOpen(true)}
         />
 
         {/* Main Content View Container */}
@@ -169,7 +168,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
           {/* Auctions View */}
           {activeTab === 'auctions' && (
             <AuctionsView
-              onConductAuction={() => setIsAuctionModalOpen(true)}
+              onRecordAuction={() => setIsAuctionModalOpen(true)}
             />
           )}
         </main>

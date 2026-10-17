@@ -15,7 +15,6 @@ interface SidebarProps {
   onSelectTab: (tab: NavTab) => void;
   pendingCount?: number;
   onOpenRecordPayment: () => void;
-  onOpenAuction: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -23,7 +22,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   pendingCount = 0,
   onOpenRecordPayment,
-  onOpenAuction,
 }) => {
   const navItems = [
     { id: 'dashboard' as NavTab, label: 'Dashboard Overview', icon: Home },
@@ -35,27 +33,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: CreditCard,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
-    { id: 'auctions' as NavTab, label: 'Auction & Dividends', icon: Hammer },
+    { id: 'auctions' as NavTab, label: 'Auction Records', icon: Hammer },
   ];
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 p-4 shrink-0 shadow-xs min-h-[calc(100vh-61px)]">
       {/* Quick Action Shortcuts */}
-      <div className="space-y-2 mb-6">
+      <div className="mb-6">
         <button
           onClick={onOpenRecordPayment}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-forest-700 hover:bg-forest-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Record Payment</span>
-        </button>
-
-        <button
-          onClick={onOpenAuction}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-        >
-          <Hammer className="w-3.5 h-3.5 text-forest-700" />
-          <span>Conduct Yelam</span>
         </button>
       </div>
 
@@ -113,4 +103,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
-

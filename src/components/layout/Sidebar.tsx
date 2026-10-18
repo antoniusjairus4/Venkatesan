@@ -37,9 +37,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 p-4 shrink-0 shadow-xs min-h-[calc(100vh-61px)]">
+    <aside className="hidden md:flex flex-col w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 p-4 shrink-0 shadow-xs sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
       {/* Quick Action Shortcuts */}
-      <div className="mb-6">
+      <div className="mb-4">
         <button
           onClick={onOpenRecordPayment}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-forest-700 hover:bg-forest-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"

@@ -13,14 +13,14 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-2.5 transition-all shadow-xs">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 transition-all shadow-xs flex items-center">
+      <div className="w-full flex items-center justify-between">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-2.5">
           <img
             src="/assets/logo-transparent.png"
             alt="Rajamanickam Chit Fund"
-            className="h-10 sm:h-12 w-auto object-contain"
+            className="h-10 sm:h-11 w-auto object-contain"
           />
           <div className="hidden sm:block">
             <h1 className="text-sm font-bold text-forest-900 tracking-tight leading-tight">

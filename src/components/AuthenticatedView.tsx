@@ -108,7 +108,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       {/* Top Header */}
       <Header onLogout={onLogout} />
 
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex items-start w-full">
         {/* Desktop Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -118,7 +118,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
         />
 
         {/* Main Content View Container */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 space-y-6 overflow-x-hidden">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 overflow-x-hidden">
           {/* Dashboard Home View */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">

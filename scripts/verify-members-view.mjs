@@ -66,7 +66,11 @@ async function captureMembersView() {
     const visibleBtn = btns.find((b) => b.offsetParent !== null);
     if (visibleBtn) visibleBtn.click();
   });
-  await delay(1500);
+  await page.waitForFunction(
+    () => document.body.innerText.includes('9 Members') && document.body.innerText.includes('Vijay Anand'),
+    { timeout: 15000 }
+  );
+  await delay(1000);
   const mobileShotPath = path.resolve(__dirname, '../public/assets/members_directory_mobile.png');
   await page.screenshot({ path: mobileShotPath });
   console.log('✓ Mobile Members Directory screenshot saved to:', mobileShotPath);

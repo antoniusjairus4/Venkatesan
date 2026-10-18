@@ -32,6 +32,8 @@ export interface Member {
   id_proof_number?: string;
   status: 'ACTIVE' | 'INACTIVE';
   total_shares_held?: number;
+  enrolled_schemes?: string;
+  ticket_details?: string;
   created_at: string;
 }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Search, Phone, MessageCircle, MapPin, Shield } from 'lucide-react';
+import { UserPlus, Search, Phone, MessageCircle, MapPin, Shield, Layers } from 'lucide-react';
 import { Member } from '@/lib/api';
 import { cleanPhone } from '@/lib/whatsapp';
 
@@ -19,7 +19,9 @@ export const MembersView: React.FC<MembersViewProps> = ({
     return (
       m.name.toLowerCase().includes(q) ||
       m.phone.includes(q) ||
-      (m.address && m.address.toLowerCase().includes(q))
+      (m.address && m.address.toLowerCase().includes(q)) ||
+      (m.enrolled_schemes && m.enrolled_schemes.toLowerCase().includes(q)) ||
+      (m.ticket_details && m.ticket_details.toLowerCase().includes(q))
     );
   });
 
@@ -28,11 +30,16 @@ export const MembersView: React.FC<MembersViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-            Member Directory
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+              Member Directory
+            </h2>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-forest-50 text-forest-700 border border-forest-200">
+              {members.length} Members
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Registered subscribers, ticket allotments, and direct mobile communication
+            All registered subscribers, enrolled chit allocations, and direct contact
           </p>
         </div>
 
@@ -54,7 +61,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by member name, phone number, or town..."
+          placeholder="Search by member name, phone, town, or chit scheme (e.g. 1 Lakh, 2 Lakhs)..."
           className="w-full pl-10 pr-4 py-2.5 bg-white/90 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 focus:outline-none focus:border-forest-700 shadow-xs"
         />
       </div>
@@ -65,6 +72,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
           const rawPhone = member.phone;
           const waPhone = member.whatsapp_phone || rawPhone;
           const waUrl = `https://wa.me/${cleanPhone(waPhone)}`;
+          const chitsCount = Number(member.total_shares_held) || 0;
 
           return (
             <div
@@ -72,18 +80,50 @@ export const MembersView: React.FC<MembersViewProps> = ({
               className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-forest-300 transition-all flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 truncate">
                       {member.name}
                     </h3>
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      {member.phone}
-                    </span>
+
+                    {/* Directly below the name: Number of chits taken */}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-forest-100/90 text-forest-800 border border-forest-200">
+                        <Layers className="w-3.5 h-3.5 text-forest-700" />
+                        <span>
+                          {chitsCount === 1 ? '1 Chit Taken' : `${chitsCount} Chits Taken`}
+                        </span>
+                      </span>
+
+                      {member.enrolled_schemes && (
+                        <span className="text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                          {member.enrolled_schemes}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] font-medium text-slate-500 mt-1.5 flex items-center gap-1.5">
+                      <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>{member.phone}</span>
+                      {member.ticket_details && (
+                        <>
+                          <span className="text-slate-300">&bull;</span>
+                          <span className="text-[10px] text-slate-400 font-semibold truncate">
+                            {member.ticket_details}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-forest-50 text-forest-700 border border-forest-200">
-                    {member.total_shares_held || 0} Shares
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      member.status === 'ACTIVE'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {member.status}
                   </span>
                 </div>
 

@@ -90,7 +90,7 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. RJCF 1 Lakh Group B"
+              placeholder="e.g. 5 Lakhs Group B"
               required
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
             />

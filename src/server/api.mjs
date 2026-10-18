@@ -257,9 +257,12 @@ apiRouter.get('/members', async (req, res) => {
     const members = await sql`
       SELECT 
         m.*,
-        COUNT(s.id)::int as total_shares_held
+        COUNT(s.id)::int as total_shares_held,
+        STRING_AGG(DISTINCT cg.name, ', ') as enrolled_schemes,
+        STRING_AGG(DISTINCT CONCAT(cg.name, ' (#', s.share_ticket_number, ')'), ', ') as ticket_details
       FROM members m
       LEFT JOIN member_shares s ON m.id = s.member_id
+      LEFT JOIN chit_groups cg ON s.chit_group_id = cg.id
       GROUP BY m.id
       ORDER BY m.name ASC;
     `;

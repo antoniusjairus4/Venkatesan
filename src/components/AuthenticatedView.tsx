@@ -282,6 +282,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
           loadAllData();
           loadAnalytics(selectedChitFilter);
         }}
+        groups={groups}
       />
     </div>
   );

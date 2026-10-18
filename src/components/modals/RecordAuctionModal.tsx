@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Hammer, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { ChitGroup, Member } from '@/lib/api';
 import { formatINR } from '@/lib/whatsapp';
@@ -26,6 +26,18 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if ((!groupId || !groups.some((g) => g.id === groupId)) && groups.length > 0) {
+      setGroupId(groups[0].id);
+    }
+  }, [groups, groupId]);
+
+  useEffect(() => {
+    if ((!winningMemberId || !members.some((m) => m.id === winningMemberId)) && members.length > 0) {
+      setWinningMemberId(members[0].id);
+    }
+  }, [members, winningMemberId]);
 
   if (!isOpen) return null;
 
@@ -124,6 +136,7 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
                 Chit Group
               </label>
               <select
+                aria-label="Auction Chit Group"
                 value={groupId}
                 onChange={(e) => setGroupId(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
@@ -157,6 +170,7 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
               Prized Subscriber (Winning Member)
             </label>
             <select
+              aria-label="Winning Subscriber"
               value={winningMemberId}
               onChange={(e) => setWinningMemberId(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"

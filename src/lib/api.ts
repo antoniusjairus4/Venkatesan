@@ -161,6 +161,8 @@ export async function createMember(data: {
   address?: string;
   id_proof_type?: string;
   id_proof_number?: string;
+  chit_group_id?: string;
+  share_count?: number;
 }): Promise<Member> {
   const res = await fetch('/api/members', {
     method: 'POST',

@@ -38,6 +38,7 @@ export const ChitFilterSelector: React.FC<ChitFilterSelectorProps> = ({
       {/* Select Dropdown */}
       <div className="relative min-w-[220px]">
         <select
+          aria-label="Chit Scheme Filter"
           value={selectedGroupId}
           onChange={(e) => onSelectGroup(e.target.value)}
           className="w-full px-3.5 py-2 pr-8 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-forest-700 transition-colors cursor-pointer appearance-none"

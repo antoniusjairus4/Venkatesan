@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, UserPlus, AlertCircle } from 'lucide-react';
-import { createMember } from '@/lib/api';
+import { ChitGroup, createMember } from '@/lib/api';
+import { formatINR } from '@/lib/whatsapp';
 
 interface NewMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  groups?: ChitGroup[];
 }
 
 export const NewMemberModal: React.FC<NewMemberModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  groups = [],
 }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -19,8 +22,23 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
   const [address, setAddress] = useState('');
   const [idProofType, setIdProofType] = useState('Aadhaar');
   const [idProofNumber, setIdProofNumber] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<string>('');
+  const [shareCount, setShareCount] = useState<string>('1');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setPhone('');
+      setWhatsapp('');
+      setAddress('');
+      setIdProofNumber('');
+      setSelectedGroup('');
+      setShareCount('1');
+      setError(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -42,6 +60,8 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
         address: address.trim() || undefined,
         id_proof_type: idProofType || undefined,
         id_proof_number: idProofNumber.trim() || undefined,
+        chit_group_id: selectedGroup || undefined,
+        share_count: selectedGroup ? Number(shareCount) || 1 : undefined,
       });
 
       onSuccess();
@@ -164,6 +184,45 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Enroll In Scheme (Rule 2)
+              </label>
+              <select
+                aria-label="Enroll In Scheme"
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+              >
+                <option value="">-- Do Not Enroll Yet --</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} ({formatINR(Number(g.total_pot_value))})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedGroup && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  Share Tickets
+                </label>
+                <select
+                  aria-label="Share Tickets"
+                  value={shareCount}
+                  onChange={(e) => setShareCount(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+                >
+                  <option value="1">1 Share Ticket</option>
+                  <option value="2">2 Share Tickets</option>
+                  <option value="5">5 Share Tickets</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="pt-2">

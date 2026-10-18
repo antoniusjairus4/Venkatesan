@@ -21,12 +21,11 @@ app.use('/api', apiRouter);
 const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// Fallback to index.html for SPA client-side routing
-app.get('*', (req, res) => {
+// Fallback to index.html for SPA client-side routing (Express 5 compatible)
+app.use((req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Rajamanickam Chit Fund server running at http://localhost:${PORT}`);
 });
-

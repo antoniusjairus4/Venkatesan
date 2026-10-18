@@ -271,13 +271,30 @@ apiRouter.get('/members', async (req, res) => {
 
 apiRouter.post('/members', async (req, res) => {
   try {
-    const { name, phone, whatsapp_phone, address, id_proof_type, id_proof_number } = req.body;
+    const { name, phone, whatsapp_phone, address, id_proof_type, id_proof_number, chit_group_id, share_count } = req.body;
 
     const [newMember] = await sql`
       INSERT INTO members (name, phone, whatsapp_phone, address, id_proof_type, id_proof_number)
       VALUES (${name}, ${phone}, ${whatsapp_phone || phone}, ${address || null}, ${id_proof_type || null}, ${id_proof_number || null})
       RETURNING *;
     `;
+
+    // Optionally enroll in a chit group at inception (Rule 2)
+    if (chit_group_id) {
+      const count = Number(share_count) || 1;
+      const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${chit_group_id};`;
+      const taken = new Set(existing.map((e) => e.share_ticket_number));
+      let ticket = 1;
+      for (let i = 0; i < count; i++) {
+        while (taken.has(ticket)) ticket++;
+        taken.add(ticket);
+        await sql`
+          INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
+          VALUES (${chit_group_id}, ${newMember.id}, ${ticket});
+        `;
+        ticket++;
+      }
+    }
 
     // Log Activity
     await sql`
@@ -501,6 +518,26 @@ apiRouter.post('/record-auction', async (req, res) => {
     // Payout amount = Pot value - Bid Discount (Rule 5 ensures it is capped)
     const payoutAmount = totalPot - bidDiscount;
 
+    // Auto-resolve or assign share for the winning member
+    let winningShareId = winning_share_id;
+    if (!winningShareId || winningShareId === '00000000-0000-0000-0000-000000000000') {
+      const [found] = await sql`
+        SELECT id FROM member_shares 
+        WHERE chit_group_id = ${chit_group_id} AND member_id = ${winning_member_id}
+        LIMIT 1;
+      `;
+      if (found) {
+        winningShareId = found.id;
+      } else {
+        const [assigned] = await sql`
+          INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
+          VALUES (${chit_group_id}, ${winning_member_id}, (SELECT COALESCE(MAX(share_ticket_number), 0) + 1 FROM member_shares WHERE chit_group_id = ${chit_group_id}))
+          RETURNING id;
+        `;
+        winningShareId = assigned.id;
+      }
+    }
+
     // Record Auction
     const [auction] = await sql`
       INSERT INTO auctions (
@@ -508,18 +545,21 @@ apiRouter.post('/record-auction', async (req, res) => {
         bid_discount_amount, organizer_commission, net_dividend_pool, dividend_per_share,
         net_installment_due, payout_amount, notes
       ) VALUES (
-        ${chit_group_id}, ${Number(month_number)}, ${auction_date}, ${winning_member_id}, ${winning_share_id},
+        ${chit_group_id}, ${Number(month_number)}, ${auction_date}, ${winning_member_id}, ${winningShareId},
         ${bidDiscount}, ${organizerCommission}, ${netDividendPool}, ${dividendPerShare},
         ${netInstallmentDue}, ${payoutAmount}, ${notes || null}
       )
       RETURNING *;
     `;
 
+    // Activate group if upcoming
+    await sql`UPDATE chit_groups SET status = 'ACTIVE' WHERE id = ${chit_group_id};`;
+
     // Mark winning share as prized
     await sql`
       UPDATE member_shares
       SET is_prized = TRUE, prized_month_number = ${Number(month_number)}
-      WHERE id = ${winning_share_id};
+      WHERE id = ${winningShareId};
     `;
 
     // Generate or update installments for all shares in this group for this month with the calculated dividend

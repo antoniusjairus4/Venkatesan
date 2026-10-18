@@ -36,6 +36,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           return (
             <button
               key={tab.id}
+              data-tab={tab.id}
               onClick={() => onSelectTab(tab.id)}
               className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-2xl transition-all cursor-pointer ${
                 isActive

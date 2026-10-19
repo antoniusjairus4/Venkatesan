@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { CreditCard, Search, MessageCircle, Clock, CheckCircle } from 'lucide-react';
+import { CreditCard, Search, MessageSquare, Clock, CheckCircle } from 'lucide-react';
 import { Installment } from '@/lib/api';
-import { formatINR, createWhatsAppReminderUrl } from '@/lib/whatsapp';
+import { formatINR } from '@/lib/whatsapp';
+import { createPaymentClearedSmsUrl } from '@/lib/sms';
 
 interface PaymentsViewProps {
   installments: Installment[];
@@ -103,15 +104,6 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             const isPaid = inst.status === 'PAID';
             const isPartial = inst.status === 'PARTIAL';
 
-            const waReminder = createWhatsAppReminderUrl({
-              phone: inst.member_phone || '',
-              memberName: inst.member_name || 'Member',
-              groupName: inst.group_name || 'Chit Group',
-              monthNumber: inst.month_number,
-              netDue: due,
-              pendingBalance: remaining,
-            });
-
             return (
               <div
                 key={inst.id}
@@ -161,16 +153,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  {!isPaid && inst.member_phone && (
+                  {isPaid && inst.member_phone && (
                     <a
-                      href={waReminder}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
-                      title="Send WhatsApp payment reminder"
+                      href={createPaymentClearedSmsUrl({
+                        phone: inst.member_phone,
+                        memberName: inst.member_name || 'Member',
+                        groupName: inst.group_name || 'Chit Group',
+                        monthNumber: inst.month_number,
+                      })}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 transition-colors"
+                      title="Send Payment Cleared SMS via mobile Messages app"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                      <span>WhatsApp</span>
+                      <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
+                      <span>SMS Receipt</span>
                     </a>
                   )}
 

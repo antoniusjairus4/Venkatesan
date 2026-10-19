@@ -19,6 +19,17 @@ import { RecordPaymentModal } from './modals/RecordPaymentModal';
 import { RecordAuctionModal } from './modals/RecordAuctionModal';
 import { NewGroupModal } from './modals/NewGroupModal';
 import { NewMemberModal } from './modals/NewMemberModal';
+import {
+  StatCardsSkeleton,
+  CollectionDonutChartSkeleton,
+  CashflowBarChartSkeleton,
+  DefaulterAgingBucketsSkeleton,
+  ActiveChitsOverviewSkeleton,
+  PendingCollectionsListSkeleton,
+  ChitGroupsOverviewSkeleton,
+  MembersViewSkeleton,
+  PaymentsViewSkeleton,
+} from './common/Skeleton';
 
 import {
   fetchDashboardSummary,
@@ -48,6 +59,8 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   const [groups, setGroups] = useState<ChitGroup[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [loadingData, setLoadingData] = useState<boolean>(true);
+  const [loadingAnalytics, setLoadingAnalytics] = useState<boolean>(true);
 
   // Modals State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -58,6 +71,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
 
   const loadAllData = async () => {
     try {
+      setLoadingData(true);
       const [sumData, grpData, memData, instData] = await Promise.all([
         fetchDashboardSummary().catch(() => null),
         fetchChitGroups().catch(() => []),
@@ -71,15 +85,20 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       setInstallments(instData);
     } catch (err) {
       console.error('Failed to load portal data:', err);
+    } finally {
+      setLoadingData(false);
     }
   };
 
   const loadAnalytics = async (filterId: string) => {
     try {
+      setLoadingAnalytics(true);
       const data = await fetchAnalytics(filterId);
       setAnalyticsData(data);
     } catch (err) {
       console.error('Failed to load analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
 
@@ -130,10 +149,14 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
               />
 
               {/* Stat Cards */}
-              <StatCards
-                summary={summary}
-                onFilterPending={() => setActiveTab('payments')}
-              />
+              {loadingData || !summary ? (
+                <StatCardsSkeleton />
+              ) : (
+                <StatCards
+                  summary={summary}
+                  onFilterPending={() => setActiveTab('payments')}
+                />
+              )}
 
               {/* Mobile Quick Actions */}
               <QuickActions
@@ -146,58 +169,70 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Chart 1: Monthly Collection Health (Donut / Ring Chart) */}
                 <div className="lg:col-span-5">
-                  <CollectionDonutChart
-                    collected={
-                      analyticsData
-                        ? analyticsData.collection.collected
-                        : summary?.totalCollected || 0
-                    }
-                    pending={
-                      analyticsData
-                        ? analyticsData.collection.pending
-                        : summary?.totalPendingDues || 0
-                    }
-                    percentage={analyticsData ? analyticsData.collection.percentage : 0}
-                    title={
-                      selectedChitFilter === 'ALL'
-                        ? 'Monthly Collection Health (Consolidated)'
-                        : 'Scheme Collection Health'
-                    }
-                  />
+                  {loadingAnalytics || !analyticsData ? (
+                    <CollectionDonutChartSkeleton />
+                  ) : (
+                    <CollectionDonutChart
+                      collected={analyticsData.collection.collected}
+                      pending={analyticsData.collection.pending}
+                      percentage={analyticsData.collection.percentage}
+                      title={
+                        selectedChitFilter === 'ALL'
+                          ? 'Monthly Collection Health (Consolidated)'
+                          : 'Scheme Collection Health'
+                      }
+                    />
+                  )}
                 </div>
 
                 {/* Chart 2: Cash Inflow vs. Winner Payouts (Dual Bar Chart) */}
                 <div className="lg:col-span-7">
-                  <CashflowBarChart data={analyticsData?.cashflow || []} />
+                  {loadingAnalytics || !analyticsData ? (
+                    <CashflowBarChartSkeleton />
+                  ) : (
+                    <CashflowBarChart data={analyticsData.cashflow || []} />
+                  )}
                 </div>
               </div>
 
               {/* Chart 6: Defaulters Aging & Risk Buckets */}
-              <DefaulterAgingBuckets
-                bucket1={analyticsData?.defaulters.bucket1 || { count: 0, amount: 0 }}
-                bucket2={analyticsData?.defaulters.bucket2 || { count: 0, amount: 0 }}
-                bucket3={analyticsData?.defaulters.bucket3 || { count: 0, amount: 0 }}
-                defaultersList={analyticsData?.defaulters.list || []}
-              />
+              {loadingAnalytics || !analyticsData ? (
+                <DefaulterAgingBucketsSkeleton />
+              ) : (
+                <DefaulterAgingBuckets
+                  bucket1={analyticsData.defaulters.bucket1 || { count: 0, amount: 0 }}
+                  bucket2={analyticsData.defaulters.bucket2 || { count: 0, amount: 0 }}
+                  bucket3={analyticsData.defaulters.bucket3 || { count: 0, amount: 0 }}
+                  defaultersList={analyticsData.defaulters.list || []}
+                />
+              )}
 
               {/* Schemes Overview & Urgent Collections */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left Column: Active Chits Overview */}
                 <div className="lg:col-span-6 space-y-6">
-                  <ActiveChitsOverview
-                    groups={groups}
-                    onNewGroup={() => setIsNewGroupModalOpen(true)}
-                    onSelectGroup={() => setActiveTab('chits')}
-                  />
+                  {loadingData ? (
+                    <ActiveChitsOverviewSkeleton />
+                  ) : (
+                    <ActiveChitsOverview
+                      groups={groups}
+                      onNewGroup={() => setIsNewGroupModalOpen(true)}
+                      onSelectGroup={() => setActiveTab('chits')}
+                    />
+                  )}
                 </div>
 
-                {/* Right Column: Pending Collections with 1-Tap WhatsApp */}
+                {/* Right Column: Pending Collections with 1-Tap Actions */}
                 <div className="lg:col-span-6 space-y-6">
-                  <PendingCollectionsList
-                    installments={displayedInstallments}
-                    onCollect={(inst) => handleOpenPayment(inst)}
-                    onViewAll={() => setActiveTab('payments')}
-                  />
+                  {loadingData ? (
+                    <PendingCollectionsListSkeleton />
+                  ) : (
+                    <PendingCollectionsList
+                      installments={displayedInstallments}
+                      onCollect={(inst) => handleOpenPayment(inst)}
+                      onViewAll={() => setActiveTab('payments')}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -205,26 +240,38 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
 
           {/* Chit Groups View */}
           {activeTab === 'chits' && (
-            <ChitGroupsView
-              groups={groups}
-              onNewGroup={() => setIsNewGroupModalOpen(true)}
-            />
+            loadingData ? (
+              <ChitGroupsOverviewSkeleton />
+            ) : (
+              <ChitGroupsView
+                groups={groups}
+                onNewGroup={() => setIsNewGroupModalOpen(true)}
+              />
+            )
           )}
 
           {/* Members View */}
           {activeTab === 'members' && (
-            <MembersView
-              members={members}
-              onNewMember={() => setIsNewMemberModalOpen(true)}
-            />
+            loadingData ? (
+              <MembersViewSkeleton />
+            ) : (
+              <MembersView
+                members={members}
+                onNewMember={() => setIsNewMemberModalOpen(true)}
+              />
+            )
           )}
 
           {/* Payments View */}
           {activeTab === 'payments' && (
-            <PaymentsView
-              installments={installments}
-              onRecordPayment={(inst) => handleOpenPayment(inst)}
-            />
+            loadingData ? (
+              <PaymentsViewSkeleton />
+            ) : (
+              <PaymentsView
+                installments={installments}
+                onRecordPayment={(inst) => handleOpenPayment(inst)}
+              />
+            )
           )}
 
           {/* Auctions View */}

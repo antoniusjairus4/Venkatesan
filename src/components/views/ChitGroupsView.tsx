@@ -15,9 +15,17 @@ import {
   Layers,
   Sparkles,
   Ticket,
+  Repeat,
+  X,
 } from 'lucide-react';
 import { ChitGroup, GroupSubscriber, fetchGroupSubscribers } from '@/lib/api';
-import { formatINR, createWhatsAppMessageUrl } from '@/lib/whatsapp';
+import {
+  formatINR,
+  createEnrollmentSmsUrl,
+  createTakeoverSmsUrl,
+  createSettlementSmsUrl,
+} from '@/lib/sms';
+import { Skeleton } from '@/components/common/Skeleton';
 
 interface ChitGroupsViewProps {
   groups: ChitGroup[];
@@ -33,6 +41,9 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   const [loadingSubscribers, setLoadingSubscribers] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRIZED' | 'ACTIVE'>('ALL');
+  const [transferSub, setTransferSub] = useState<GroupSubscriber | null>(null);
+  const [newBuyerName, setNewBuyerName] = useState('');
+  const [newBuyerPhone, setNewBuyerPhone] = useState('');
 
   // Load subscribers when a group is selected
   useEffect(() => {
@@ -270,20 +281,50 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
 
         {/* Subscribers Grid / List */}
         {loadingSubscribers ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5" aria-busy="true" aria-label="Loading subscribers">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
                 key={n}
-                className="bg-white/90 p-4 rounded-2xl border border-slate-200/80 animate-pulse space-y-3"
+                className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3.5"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-200" />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="w-24 h-3.5 bg-slate-200 rounded" />
-                    <div className="w-16 h-2.5 bg-slate-100 rounded" />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-10 h-10 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-4 w-28 rounded" />
+                      <Skeleton className="h-2.5 w-20 rounded" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+
+                <div className="p-2.5 bg-slate-50/70 rounded-xl space-y-2 border border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-2.5 w-24 rounded" />
+                    <Skeleton className="h-3 w-12 rounded" />
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Skeleton className="h-5 w-16 rounded-md" />
+                    <Skeleton className="h-5 w-16 rounded-md" />
                   </div>
                 </div>
-                <div className="h-8 bg-slate-100 rounded-xl" />
+
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <Skeleton className="h-2 w-14 rounded" />
+                    <Skeleton className="h-3.5 w-16 rounded" />
+                  </div>
+                  <div>
+                    <Skeleton className="h-2 w-14 rounded" />
+                    <Skeleton className="h-3.5 w-16 rounded" />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <Skeleton className="h-8 flex-1 rounded-xl" />
+                  <Skeleton className="h-8 flex-1 rounded-xl" />
+                  <Skeleton className="h-8 flex-1 rounded-xl" />
+                </div>
               </div>
             ))}
           </div>
@@ -312,11 +353,6 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
               const cleanPhone = sub.whatsapp_phone || sub.phone;
               const pendingAmt = Number(sub.total_pending || 0);
               const paidAmt = Number(sub.total_paid || 0);
-
-              const whatsappUrl = createWhatsAppMessageUrl(
-                cleanPhone,
-                `Vanakkam ${sub.member_name}, regarding your share in ${selectedGroup.name} chit group at RJ Chit Funds.`
-              );
 
               return (
                 <div
@@ -412,29 +448,157 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Contact Action Buttons */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  {/* Contact & Takeover Action Buttons */}
+                  <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
                     <a
                       href={`tel:${sub.phone}`}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-xl transition-all"
                     >
                       <Phone className="w-3.5 h-3.5 text-slate-500" />
                       <span>Call</span>
                     </a>
 
                     <a
-                      href={whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs"
+                      href={
+                        selectedGroup.status === 'COMPLETED'
+                          ? createSettlementSmsUrl({
+                              phone: sub.phone,
+                              memberName: sub.member_name,
+                              groupName: selectedGroup.name,
+                              totalPaid: Number(sub.total_paid || 0),
+                              totalDividends: Number(selectedGroup.total_pot_value) * 0.1,
+                              totalPotValue: Number(selectedGroup.total_pot_value),
+                            })
+                          : createEnrollmentSmsUrl({
+                              phone: sub.phone,
+                              memberName: sub.member_name,
+                              groupName: selectedGroup.name,
+                              potValue: Number(selectedGroup.total_pot_value),
+                              baseAmount: Number(selectedGroup.installment_base_amount),
+                              startDate: new Date(selectedGroup.start_date).toLocaleDateString('en-IN'),
+                            })
+                      }
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-forest-700 hover:bg-forest-800 text-white font-bold text-[11px] rounded-xl transition-all shadow-xs"
+                      title="Open mobile native SMS messaging app"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>WhatsApp</span>
+                      <span>{selectedGroup.status === 'COMPLETED' ? 'Settlement SMS' : 'SMS'}</span>
                     </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransferSub(sub);
+                        setNewBuyerName('');
+                        setNewBuyerPhone('');
+                      }}
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+                      title="Transfer / Takeover chit share to new buyer"
+                    >
+                      <Repeat className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Takeover</span>
+                    </button>
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Chit Takeover Modal (Sent only to New Buyer) */}
+        {transferSub && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Repeat className="w-5 h-5 text-amber-600" />
+                  <h3 className="text-base font-bold text-slate-900">
+                    Chit Share Takeover (New Buyer)
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setTransferSub(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs space-y-1">
+                <p className="text-slate-500">
+                  Current Share Owner: <strong className="text-slate-800">{transferSub.member_name}</strong>
+                </p>
+                <p className="text-slate-500">
+                  Chit Scheme: <strong className="text-forest-800">{selectedGroup.name}</strong>
+                </p>
+                <p className="text-slate-500">
+                  Cumulative Paid Balance Credited: <strong className="text-emerald-700">{formatINR(Number(transferSub.total_paid || 0))}</strong>
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    New Buyer Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newBuyerName}
+                    onChange={(e) => setNewBuyerName(e.target.value)}
+                    placeholder="Enter new buyer's name..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-forest-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    New Buyer Mobile Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={newBuyerPhone}
+                    onChange={(e) => setNewBuyerPhone(e.target.value)}
+                    placeholder="e.g. 9842100000"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-forest-700"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 space-y-2">
+                {newBuyerName.trim() && newBuyerPhone.trim() ? (
+                  <a
+                    href={createTakeoverSmsUrl({
+                      phone: newBuyerPhone,
+                      newBuyerName: newBuyerName.trim(),
+                      groupName: selectedGroup.name,
+                      previousMemberName: transferSub.member_name,
+                      completedMonths: 1,
+                      totalPreviouslyPaid: Number(transferSub.total_paid || 0),
+                      nextMonthNumber: 2,
+                    })}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Send Takeover SMS to New Buyer</span>
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    className="w-full py-3 px-4 rounded-xl bg-slate-200 text-slate-400 font-bold text-xs cursor-not-allowed"
+                  >
+                    Enter New Buyer Name &amp; Phone to Send SMS
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setTransferSub(null)}
+                  className="w-full py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

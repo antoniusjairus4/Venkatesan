@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Hammer, Calendar, Award, PlusCircle } from 'lucide-react';
 import { Auction } from '@/lib/api';
-import { formatINR } from '@/lib/whatsapp';
+import { formatINR } from '@/lib/sms';
+import { AuctionsViewSkeleton } from '@/components/common/Skeleton';
 
 interface AuctionsViewProps {
   onRecordAuction: () => void;
@@ -23,6 +24,10 @@ export const AuctionsView: React.FC<AuctionsViewProps> = ({ onRecordAuction }) =
         setLoading(false);
       });
   }, []);
+
+  if (loading) {
+    return <AuctionsViewSkeleton />;
+  }
 
   return (
     <div className="space-y-4">
@@ -48,9 +53,7 @@ export const AuctionsView: React.FC<AuctionsViewProps> = ({ onRecordAuction }) =
 
       {/* Auctions Cards */}
       <div className="space-y-3">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-xs">Loading auction history...</div>
-        ) : auctions.length === 0 ? (
+        {auctions.length === 0 ? (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-8 border border-slate-200 text-center text-slate-400">
             <Hammer className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             <p className="text-xs font-semibold text-slate-700">No Auction Records Entered Yet</p>

@@ -408,27 +408,57 @@ apiRouter.get('/installments', async (req, res) => {
   try {
     const { chit_group_id, month_number, status } = req.query;
 
-    let query = `
-      SELECT 
-        i.*,
-        m.name as member_name,
-        m.phone as member_phone,
-        g.name as group_name,
-        s.share_ticket_number
-      FROM installments i
-      JOIN members m ON i.member_id = m.id
-      JOIN chit_groups g ON i.chit_group_id = g.id
-      JOIN member_shares s ON i.share_id = s.id
-      WHERE 1=1
-    `;
+    let rows;
+    if (chit_group_id && month_number) {
+      rows = await sql`
+        SELECT 
+          i.*,
+          m.name as member_name,
+          m.phone as member_phone,
+          g.name as group_name,
+          s.share_ticket_number
+        FROM installments i
+        JOIN members m ON i.member_id = m.id
+        JOIN chit_groups g ON i.chit_group_id = g.id
+        JOIN member_shares s ON i.share_id = s.id
+        WHERE i.chit_group_id = ${chit_group_id} AND i.month_number = ${Number(month_number)}
+        ORDER BY g.name, i.month_number, s.share_ticket_number;
+      `;
+    } else if (chit_group_id) {
+      rows = await sql`
+        SELECT 
+          i.*,
+          m.name as member_name,
+          m.phone as member_phone,
+          g.name as group_name,
+          s.share_ticket_number
+        FROM installments i
+        JOIN members m ON i.member_id = m.id
+        JOIN chit_groups g ON i.chit_group_id = g.id
+        JOIN member_shares s ON i.share_id = s.id
+        WHERE i.chit_group_id = ${chit_group_id}
+        ORDER BY g.name, i.month_number, s.share_ticket_number;
+      `;
+    } else {
+      rows = await sql`
+        SELECT 
+          i.*,
+          m.name as member_name,
+          m.phone as member_phone,
+          g.name as group_name,
+          s.share_ticket_number
+        FROM installments i
+        JOIN members m ON i.member_id = m.id
+        JOIN chit_groups g ON i.chit_group_id = g.id
+        JOIN member_shares s ON i.share_id = s.id
+        ORDER BY g.name, i.month_number, s.share_ticket_number;
+      `;
+    }
 
-    if (chit_group_id) query += ` AND i.chit_group_id = '${chit_group_id}'`;
-    if (month_number) query += ` AND i.month_number = ${Number(month_number)}`;
-    if (status) query += ` AND i.status = '${status}'`;
+    if (status) {
+      rows = rows.filter((r) => r.status === status);
+    }
 
-    query += ` ORDER BY g.name, i.month_number, s.share_ticket_number;`;
-
-    const rows = await sql.query(query);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });

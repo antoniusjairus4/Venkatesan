@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, AlertCircle } from 'lucide-react';
+import { X, UserPlus, AlertCircle, CheckCircle, MessageSquare } from 'lucide-react';
 import { ChitGroup, createMember } from '@/lib/api';
 import { formatINR } from '@/lib/whatsapp';
+import { createEnrollmentSmsUrl } from '@/lib/sms';
 
 interface NewMemberModalProps {
   isOpen: boolean;
@@ -26,6 +27,14 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
   const [shareCount, setShareCount] = useState<string>('1');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successData, setSuccessData] = useState<{
+    memberName: string;
+    phone: string;
+    groupName?: string;
+    potValue?: number;
+    baseAmount?: number;
+    startDate?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -37,6 +46,7 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
       setSelectedGroup('');
       setShareCount('1');
       setError(null);
+      setSuccessData(null);
     }
   }, [isOpen]);
 
@@ -64,8 +74,17 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
         share_count: selectedGroup ? Number(shareCount) || 1 : undefined,
       });
 
+      const grp = groups.find((g) => g.id === selectedGroup);
+      setSuccessData({
+        memberName: name.trim(),
+        phone: phone.trim(),
+        groupName: grp?.name,
+        potValue: grp ? Number(grp.total_pot_value) : undefined,
+        baseAmount: grp ? Number(grp.installment_base_amount) : undefined,
+        startDate: grp ? new Date(grp.start_date).toLocaleDateString('en-IN') : undefined,
+      });
+
       onSuccess();
-      onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to add member');
     } finally {
@@ -84,14 +103,67 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
             </h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setSuccessData(null);
+              onClose();
+            }}
             className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        {successData ? (
+          <div className="p-6 text-center space-y-4">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
+              <CheckCircle className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h4 className="text-lg font-bold text-slate-900">
+                Member Registered Successfully!
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">
+                {successData.memberName} &bull; {successData.phone}
+              </p>
+              {successData.groupName && (
+                <div className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-forest-50 text-forest-800 border border-forest-200">
+                  Enrolled: {successData.groupName}
+                </div>
+              )}
+            </div>
+
+            {successData.groupName && successData.potValue && successData.baseAmount && (
+              <div className="pt-2">
+                <a
+                  href={createEnrollmentSmsUrl({
+                    phone: successData.phone,
+                    memberName: successData.memberName,
+                    groupName: successData.groupName,
+                    potValue: successData.potValue,
+                    baseAmount: successData.baseAmount,
+                    startDate: successData.startDate || 'Immediate',
+                  })}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-sm shadow-md shadow-forest-700/20 transition-all cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Send SMS to Member (Phone Messages App)</span>
+                </a>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setSuccessData(null);
+                onClose();
+              }}
+              className="w-full py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            >
+              Done & Close
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -235,6 +307,7 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

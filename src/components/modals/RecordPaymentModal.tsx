@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, IndianRupee, MessageCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, IndianRupee, MessageSquare, AlertCircle } from 'lucide-react';
 import { Installment, recordPayment } from '@/lib/api';
-import { formatINR, createWhatsAppReceiptUrl } from '@/lib/whatsapp';
+import { formatINR } from '@/lib/whatsapp';
+import { createPaymentClearedSmsUrl } from '@/lib/sms';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -46,8 +47,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       const remaining = Number(selectedInstallment.net_due_amount) - Number(selectedInstallment.paid_amount);
       setAmountPaid(String(Math.max(0, remaining)));
     } else if (installments.length > 0 && !installmentId) {
-      setInstallmentId(installments[0].id);
-      const remaining = Number(installments[0].net_due_amount) - Number(installments[0].paid_amount);
+      const firstPending = installments.find((i) => i.status !== 'PAID') || installments[0];
+      setInstallmentId(firstPending.id);
+      const remaining = Number(firstPending.net_due_amount) - Number(firstPending.paid_amount);
       setAmountPaid(String(Math.max(0, remaining)));
     }
   }, [selectedInstallment, installments]);
@@ -158,17 +160,20 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </p>
             )}
 
-            {/* Direct WhatsApp Share Button */}
+            {/* Inbuilt Mobile SMS Button */}
             {receiptData.phone && (
               <div className="pt-2">
                 <a
-                  href={createWhatsAppReceiptUrl(receiptData)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  href={createPaymentClearedSmsUrl({
+                    phone: receiptData.phone,
+                    memberName: receiptData.memberName,
+                    groupName: receiptData.groupName,
+                    monthNumber: receiptData.monthNumber,
+                  })}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-sm shadow-md shadow-forest-700/20 transition-all cursor-pointer"
                 >
-                  <MessageCircle className="w-4 h-4 fill-white" />
-                  <span>Send WhatsApp Receipt to Member</span>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Send SMS to Member (Phone Messages App)</span>
                 </a>
               </div>
             )}

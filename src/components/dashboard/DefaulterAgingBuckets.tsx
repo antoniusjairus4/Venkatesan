@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Clock, ShieldAlert, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatINR, createWhatsAppReminderUrl } from '@/lib/whatsapp';
+import { AlertTriangle, Clock, ShieldAlert, Phone, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatINR } from '@/lib/sms';
 
 interface DefaulterMember {
   memberId: string;
@@ -157,15 +157,6 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
           ) : (
             <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto rounded-xl border border-slate-100">
               {filteredList.map((m) => {
-                const waUrl = createWhatsAppReminderUrl({
-                  phone: m.phone,
-                  memberName: m.memberName,
-                  groupName: m.groupName,
-                  monthNumber: m.unpaidCount,
-                  netDue: m.pendingAmount,
-                  pendingBalance: m.pendingAmount,
-                });
-
                 return (
                   <div
                     key={m.memberId}
@@ -196,16 +187,16 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
                         {formatINR(m.pendingAmount)}
                       </strong>
 
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold transition-colors"
-                        title="Send urgent WhatsApp reminder"
-                      >
-                        <MessageCircle className="w-3 h-3 text-emerald-600 fill-emerald-600" />
-                        <span>Remind</span>
-                      </a>
+                      {m.phone && (
+                        <a
+                          href={`tel:${m.phone}`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-bold transition-colors"
+                          title="Call member directly"
+                        >
+                          <Phone className="w-3 h-3 text-slate-600" />
+                          <span>Call</span>
+                        </a>
+                      )}
                     </div>
                   </div>
                 );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { UserPlus, Search, Phone, MessageCircle, MapPin, Shield, Layers } from 'lucide-react';
+import { UserPlus, Search, Phone, MessageSquare, MapPin, Shield, Layers } from 'lucide-react';
 import { Member } from '@/lib/api';
-import { cleanPhone } from '@/lib/whatsapp';
+import { cleanPhone, createSmsUrl } from '@/lib/sms';
 
 interface MembersViewProps {
   members: Member[];
@@ -70,8 +70,6 @@ export const MembersView: React.FC<MembersViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filtered.map((member) => {
           const rawPhone = member.phone;
-          const waPhone = member.whatsapp_phone || rawPhone;
-          const waUrl = `https://wa.me/${cleanPhone(waPhone)}`;
           const chitsCount = Number(member.total_shares_held) || 0;
 
           return (
@@ -155,13 +153,15 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 </a>
 
                 <a
-                  href={waUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors"
+                  href={createSmsUrl(
+                    rawPhone,
+                    `வணக்கம் / Hello ${member.name},\n\nRAJAMANICKAM CHIT FUND\nRegards,\nK. Venkatesan\nPh: +91 98765 43210`
+                  )}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-xs font-bold transition-colors"
+                  title="Send SMS via mobile Messages app"
                 >
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                  <span>WhatsApp</span>
+                  <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
+                  <span>SMS</span>
                 </a>
               </div>
             </div>

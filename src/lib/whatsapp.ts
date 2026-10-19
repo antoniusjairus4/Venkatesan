@@ -111,3 +111,8 @@ Rajamanickam Chit Fund`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
+export function createWhatsAppMessageUrl(phone: string, text: string): string {
+  const cleaned = cleanPhone(phone);
+  return `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
+}
+

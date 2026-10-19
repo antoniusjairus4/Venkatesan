@@ -22,6 +22,20 @@ export interface ChitGroup {
   created_at: string;
 }
 
+export interface GroupSubscriber {
+  member_id: string;
+  member_name: string;
+  phone: string;
+  whatsapp_phone?: string;
+  address?: string;
+  shares_count: number;
+  ticket_numbers: number[];
+  is_prized_winner: boolean;
+  prized_month_number?: number | null;
+  total_paid: number;
+  total_pending: number;
+}
+
 export interface Member {
   id: string;
   name: string;
@@ -128,6 +142,12 @@ export async function fetchAnalytics(chitGroupId?: string): Promise<AnalyticsDat
 export async function fetchChitGroups(): Promise<ChitGroup[]> {
   const res = await fetch('/api/chit-groups');
   if (!res.ok) throw new Error('Failed to fetch chit groups');
+  return res.json();
+}
+
+export async function fetchGroupSubscribers(groupId: string): Promise<GroupSubscriber[]> {
+  const res = await fetch(`/api/chit-groups/${groupId}/subscribers`);
+  if (!res.ok) throw new Error('Failed to fetch group subscribers');
   return res.json();
 }
 

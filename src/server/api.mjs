@@ -221,6 +221,43 @@ apiRouter.get('/chit-groups', async (req, res) => {
   }
 });
 
+apiRouter.get('/chit-groups/:id/subscribers', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const subscribers = await sql`
+      SELECT 
+        m.id as member_id,
+        m.name as member_name,
+        m.phone,
+        m.whatsapp_phone,
+        m.address,
+        COUNT(s.id)::int as shares_count,
+        ARRAY_AGG(s.share_ticket_number ORDER BY s.share_ticket_number) as ticket_numbers,
+        BOOL_OR(s.is_prized) as is_prized_winner,
+        MAX(s.prized_month_number) as prized_month_number,
+        COALESCE(inst_agg.total_paid, 0)::numeric as total_paid,
+        COALESCE(inst_agg.total_pending, 0)::numeric as total_pending
+      FROM member_shares s
+      JOIN members m ON s.member_id = m.id
+      LEFT JOIN (
+        SELECT 
+          member_id,
+          SUM(CASE WHEN status = 'PAID' THEN paid_amount ELSE 0 END) as total_paid,
+          SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END) as total_pending
+        FROM installments
+        WHERE chit_group_id = ${id}
+        GROUP BY member_id
+      ) inst_agg ON inst_agg.member_id = m.id
+      WHERE s.chit_group_id = ${id}
+      GROUP BY m.id, m.name, m.phone, m.whatsapp_phone, m.address, inst_agg.total_paid, inst_agg.total_pending
+      ORDER BY MIN(s.share_ticket_number) ASC;
+    `;
+    res.json(subscribers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 apiRouter.post('/chit-groups', async (req, res) => {
   try {
     const { name, total_pot_value, total_months, start_date, notes } = req.body;

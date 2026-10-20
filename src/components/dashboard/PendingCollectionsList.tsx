@@ -1,7 +1,7 @@
 import React from 'react';
-import { Phone, CheckCircle, Clock } from 'lucide-react';
+import { Phone, CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { Installment } from '@/lib/api';
-import { formatINR } from '@/lib/sms';
+import { formatINR, createOverdueReminderSmsUrl } from '@/lib/sms';
 
 interface PendingCollectionsListProps {
   installments: Installment[];
@@ -113,14 +113,32 @@ export const PendingCollectionsList: React.FC<PendingCollectionsListProps> = ({
                 {/* Direct Action Buttons: Call & Collect */}
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                   {inst.member_phone && (
-                    <a
-                      href={`tel:${inst.member_phone}`}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
-                      title="Call member directly"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Call</span>
-                    </a>
+                    <>
+                      <a
+                        href={`tel:${inst.member_phone}`}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+                        title="Call member directly"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Call</span>
+                      </a>
+
+                      <a
+                        href={createOverdueReminderSmsUrl({
+                          phone: inst.member_phone,
+                          memberName: inst.member_name || 'Member',
+                          groupName: inst.group_name || 'Chit Group',
+                          pendingAmount: remaining,
+                          unpaidCount: 1,
+                          monthNumber: inst.month_number,
+                        })}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 transition-colors cursor-pointer"
+                        title="Send Overdue Notice SMS to member"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
+                        <span>SMS</span>
+                      </a>
+                    </>
                   )}
 
                   {/* Collect Payment Button */}

@@ -159,3 +159,45 @@ Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
 }
+
+/**
+ * 5. Installment Due / Overdue Notice (Native SMS - Bilingual English & Tamil)
+ * Sent to members with overdue installments from Day 1 of the month or multi-month dues
+ */
+export function createOverdueReminderSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  groupName: string;
+  pendingAmount: number;
+  unpaidCount?: number;
+  monthNumber?: number;
+}): string {
+  const count = params.unpaidCount || 1;
+  const monthText = params.monthNumber
+    ? `Month ${params.monthNumber}`
+    : `${count} Month${count > 1 ? 's' : ''}`;
+  const monthTamil = params.monthNumber
+    ? `மாதம் ${params.monthNumber}`
+    : `${count} மாத தவணை`;
+
+  const text =
+`வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Installment Overdue Notice / மாதாந்திர தவணை நிலுவை அறிவிப்பு
+
+• Chit Scheme / திட்டம்: ${params.groupName}
+• Overdue Balance / நிலுவைத் தொகை: ${formatINR(params.pendingAmount)}
+• Duration Due / நிலுவை: ${monthText} (${monthTamil})
+
+Kindly clear your pending installment at the earliest.
+தங்களின் மாதாந்திர சீட்டு தவணை நிலுவைத் தொகையை உடனே செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
+
+Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
+
+  return createSmsUrl(params.phone, text);
+}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Clock, ShieldAlert, Phone, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatINR } from '@/lib/sms';
+import { AlertTriangle, Clock, ShieldAlert, Phone, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatINR, createOverdueReminderSmsUrl } from '@/lib/sms';
 
 interface DefaulterMember {
   memberId: string;
@@ -188,14 +188,31 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
                       </strong>
 
                       {m.phone && (
-                        <a
-                          href={`tel:${m.phone}`}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-bold transition-colors"
-                          title="Call member directly"
-                        >
-                          <Phone className="w-3 h-3 text-slate-600" />
-                          <span>Call</span>
-                        </a>
+                        <div className="flex items-center gap-1.5">
+                          <a
+                            href={`tel:${m.phone}`}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
+                            title="Call member directly"
+                          >
+                            <Phone className="w-3 h-3 text-slate-600" />
+                            <span>Call</span>
+                          </a>
+
+                          <a
+                            href={createOverdueReminderSmsUrl({
+                              phone: m.phone,
+                              memberName: m.memberName,
+                              groupName: m.groupName,
+                              pendingAmount: m.pendingAmount,
+                              unpaidCount: m.unpaidCount,
+                            })}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-[11px] font-bold transition-colors cursor-pointer"
+                            title="Send Overdue Notice SMS to member"
+                          >
+                            <MessageSquare className="w-3 h-3 text-forest-700" />
+                            <span>SMS</span>
+                          </a>
+                        </div>
                       )}
                     </div>
                   </div>

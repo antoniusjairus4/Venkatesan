@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { CreditCard, Search, MessageSquare, Clock, CheckCircle } from 'lucide-react';
 import { Installment } from '@/lib/api';
 import { formatINR } from '@/lib/whatsapp';
-import { createPaymentClearedSmsUrl } from '@/lib/sms';
+import { createPaymentClearedSmsUrl, createOverdueReminderSmsUrl } from '@/lib/sms';
 
 interface PaymentsViewProps {
   installments: Installment[];
@@ -170,12 +170,32 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   )}
 
                   {!isPaid && (
-                    <button
-                      onClick={() => onRecordPayment(inst)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-forest-700 hover:bg-forest-800 text-white shadow-xs transition-colors cursor-pointer"
-                    >
-                      <span>Collect</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {inst.member_phone && (
+                        <a
+                          href={createOverdueReminderSmsUrl({
+                            phone: inst.member_phone,
+                            memberName: inst.member_name || 'Member',
+                            groupName: inst.group_name || 'Chit Group',
+                            pendingAmount: remaining,
+                            unpaidCount: 1,
+                            monthNumber: inst.month_number,
+                          })}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors cursor-pointer"
+                          title="Send Overdue Reminder SMS to member"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-amber-700" />
+                          <span>SMS Due</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => onRecordPayment(inst)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-forest-700 hover:bg-forest-800 text-white shadow-xs transition-colors cursor-pointer"
+                      >
+                        <span>Collect</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

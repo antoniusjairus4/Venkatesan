@@ -45,7 +45,7 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
   const pot = currentGroup ? Number(currentGroup.total_pot_value) : 100000;
   const shares = currentGroup ? Number(currentGroup.total_shares) : 20;
   const base = currentGroup ? Number(currentGroup.installment_base_amount) : 5000;
-  const commissionPercent = currentGroup ? Number(currentGroup.commission_percent || 5) : 5;
+  const commissionPercent = currentGroup ? Number(currentGroup.commission_percent || 0) : 0;
 
   const discountNum = Number(bidDiscount) || 0;
   const commission = (pot * commissionPercent) / 100;
@@ -210,13 +210,9 @@ export const RecordAuctionModal: React.FC<RecordAuctionModalProps> = ({
               <span className="text-[10px] text-forest-700 font-normal">Pot: {formatINR(pot)}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1 text-slate-700">
+            <div className="grid grid-cols-3 gap-2 pt-1 text-slate-700">
               <div>
-                <span className="text-[10px] text-slate-500 uppercase block">Organizer Commission (5%)</span>
-                <span className="font-bold">{formatINR(commission)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase block">Net Dividend Pool</span>
+                <span className="text-[10px] text-slate-500 uppercase block">Dividend Pool</span>
                 <span className="font-bold text-forest-800">{formatINR(netDividendPool)}</span>
               </div>
               <div>

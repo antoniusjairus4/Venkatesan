@@ -652,7 +652,7 @@ apiRouter.post('/record-auction', async (req, res) => {
     const totalPot = Number(group.total_pot_value);
     const totalShares = Number(group.total_shares);
     const baseInstallment = Number(group.installment_base_amount);
-    const commissionPercent = Number(group.commission_percent || 5.0);
+    const commissionPercent = Number(group.commission_percent || 0.0);
 
     const bidDiscount = Number(bid_discount_amount);
     const organizerCommission = (totalPot * commissionPercent) / 100;

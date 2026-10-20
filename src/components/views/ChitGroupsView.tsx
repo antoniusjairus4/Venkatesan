@@ -634,7 +634,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-3">
+                <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 mb-3">
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase">Duration</span>
                     <strong className="text-slate-800">{months} Months</strong>
@@ -642,10 +642,6 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase">Base Monthly</span>
                     <strong className="text-slate-800">{formatINR(base)}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Commission</span>
-                    <strong className="text-slate-800">{group.commission_percent || 5}%</strong>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase">Shares Assigned</span>

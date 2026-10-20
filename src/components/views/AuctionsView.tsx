@@ -99,22 +99,13 @@ export const AuctionsView: React.FC<AuctionsViewProps> = ({ onRecordAuction }) =
                 </div>
 
                 {/* Metrics Breakdown Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase font-medium block">
                       Auction Discount
                     </span>
                     <strong className="text-slate-900 font-extrabold text-sm">
                       {formatINR(discount)}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-medium block">
-                      5% Commission
-                    </span>
-                    <strong className="text-slate-700 font-bold">
-                      {formatINR(commission)}
                     </strong>
                   </div>
 

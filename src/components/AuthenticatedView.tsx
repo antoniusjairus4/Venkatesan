@@ -63,6 +63,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   // Modals State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
+  const [targetMember, setTargetMember] = useState<Member | null>(null);
   const [isNewGroupModalOpen, setIsNewGroupModalOpen] = useState(false);
   const [isNewMemberModalOpen, setIsNewMemberModalOpen] = useState(false);
 
@@ -110,8 +111,9 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
     loadAnalytics(selectedChitFilter);
   }, [selectedChitFilter]);
 
-  const handleOpenPayment = (inst?: Installment) => {
+  const handleOpenPayment = (inst?: Installment, member?: Member) => {
     setSelectedInstallment(inst || null);
+    setTargetMember(member || null);
     setIsPaymentModalOpen(true);
   };
 
@@ -257,7 +259,9 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
             ) : (
               <MembersView
                 members={members}
+                installments={installments}
                 onNewMember={() => setIsNewMemberModalOpen(true)}
+                onRecordPayment={(member) => handleOpenPayment(undefined, member)}
               />
             )
           )}
@@ -286,13 +290,18 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       {/* Modals */}
       <RecordPaymentModal
         isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedInstallment(null);
+          setTargetMember(null);
+        }}
         onSuccess={() => {
           loadAllData();
           loadAnalytics(selectedChitFilter);
         }}
         installments={installments}
         selectedInstallment={selectedInstallment}
+        targetMember={targetMember}
       />
 
       <NewGroupModal

@@ -1,16 +1,32 @@
 import React, { useState } from 'react';
-import { UserPlus, Search, Phone, MessageSquare, MapPin, Shield, Layers } from 'lucide-react';
-import { Member } from '@/lib/api';
+import {
+  UserPlus,
+  Search,
+  Phone,
+  MessageSquare,
+  MapPin,
+  Shield,
+  Layers,
+  IndianRupee,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
+import { Member, Installment } from '@/lib/api';
+import { formatINR } from '@/lib/whatsapp';
 import { cleanPhone, createSmsUrl } from '@/lib/sms';
 
 interface MembersViewProps {
   members: Member[];
+  installments?: Installment[];
   onNewMember: () => void;
+  onRecordPayment: (member: Member) => void;
 }
 
 export const MembersView: React.FC<MembersViewProps> = ({
   members,
+  installments = [],
   onNewMember,
+  onRecordPayment,
 }) => {
   const [search, setSearch] = useState('');
 
@@ -72,6 +88,14 @@ export const MembersView: React.FC<MembersViewProps> = ({
           const rawPhone = member.phone;
           const chitsCount = Number(member.total_shares_held) || 0;
 
+          // Calculate member dues from active installments
+          const memberInst = installments.filter((i) => i.member_id === member.id);
+          const pendingSum = memberInst.reduce(
+            (acc, i) => acc + Math.max(0, Number(i.net_due_amount) - Number(i.paid_amount)),
+            0
+          );
+          const hasPending = pendingSum > 0;
+
           return (
             <div
               key={member.id}
@@ -97,6 +121,21 @@ export const MembersView: React.FC<MembersViewProps> = ({
                         <span className="text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
                           {member.enrolled_schemes}
                         </span>
+                      )}
+
+                      {/* Dues Status Badge */}
+                      {chitsCount > 0 && (
+                        hasPending ? (
+                          <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>{formatINR(pendingSum)} Due</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Cleared ✓</span>
+                          </span>
+                        )
                       )}
                     </div>
 
@@ -143,26 +182,60 @@ export const MembersView: React.FC<MembersViewProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-                <a
-                  href={`tel:${rawPhone}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors"
-                >
-                  <Phone className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Call</span>
-                </a>
+              <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
+                {chitsCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onRecordPayment(member)}
+                    className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                      hasPending
+                        ? 'bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white'
+                        : 'bg-forest-50 hover:bg-forest-100 active:bg-forest-200 text-forest-800 border border-forest-300'
+                    }`}
+                    title={
+                      chitsCount > 1
+                        ? `Record payment across ${chitsCount} enrolled chits`
+                        : 'Record payment for this member'
+                    }
+                  >
+                    <IndianRupee className="w-3.5 h-3.5" />
+                    <span>
+                      {hasPending
+                        ? chitsCount > 1
+                          ? `Record Payment (${chitsCount} Chits • ${formatINR(pendingSum)} Due)`
+                          : `Record Payment (${formatINR(pendingSum)} Due)`
+                        : chitsCount > 1
+                          ? `Record Payment (${chitsCount} Chits)`
+                          : 'Record Payment'}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="w-full py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-semibold text-[11px] text-center">
+                    No active chits enrolled
+                  </div>
+                )}
 
-                <a
-                  href={createSmsUrl(
-                    rawPhone,
-                    `வணக்கம் / Hello ${member.name},\n\nRAJAMANICKAM CHIT FUND\nGreetings from Rajamanickam Chit Fund, Salem.\nராஜமாணிக்கம் சிட் பண்ட்-ன் அன்பான வணக்கங்கள்.\n\nRegards / இங்ஙனம்,\nRajamanickam Chit Fund, Salem\nPh: +91 98765 43210`
-                  )}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-xs font-bold transition-colors"
-                  title="Send SMS via mobile Messages app"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
-                  <span>SMS</span>
-                </a>
+                <div className="flex items-center justify-between gap-2">
+                  <a
+                    href={`tel:${rawPhone}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Call</span>
+                  </a>
+
+                  <a
+                    href={createSmsUrl(
+                      rawPhone,
+                      `வணக்கம் / Hello ${member.name},\n\nRAJAMANICKAM CHIT FUND\nGreetings from Rajamanickam Chit Fund, Salem.\nராஜமாணிக்கம் சிட் பண்ட்-ன் அன்பான வணக்கங்கள்.\n\nRegards / இங்ஙனம்,\nRajamanickam Chit Fund, Salem\nPh: +91 98765 43210`
+                    )}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-xs font-bold transition-colors"
+                    title="Send SMS via mobile Messages app"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-forest-700" />
+                    <span>SMS</span>
+                  </a>
+                </div>
               </div>
             </div>
           );

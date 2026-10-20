@@ -3,6 +3,7 @@ import { X, CheckCircle, IndianRupee, MessageSquare, AlertCircle } from 'lucide-
 import { Installment, recordPayment } from '@/lib/api';
 import { formatINR } from '@/lib/whatsapp';
 import { createPaymentClearedSmsUrl } from '@/lib/sms';
+import { DueInstallmentDropdown } from './DueInstallmentDropdown';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -47,9 +48,14 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       const remaining = Number(selectedInstallment.net_due_amount) - Number(selectedInstallment.paid_amount);
       setAmountPaid(String(Math.max(0, remaining)));
     } else if (installments.length > 0 && !installmentId) {
-      const firstPending = installments.find((i) => i.status !== 'PAID') || installments[0];
-      setInstallmentId(firstPending.id);
-      const remaining = Number(firstPending.net_due_amount) - Number(firstPending.paid_amount);
+      const firstWithDues =
+        installments.find(
+          (i) => Number(i.net_due_amount) - Number(i.paid_amount) > 0
+        ) ||
+        installments.find((i) => i.status !== 'PAID') ||
+        installments[0];
+      setInstallmentId(firstWithDues.id);
+      const remaining = Number(firstWithDues.net_due_amount) - Number(firstWithDues.paid_amount);
       setAmountPaid(String(Math.max(0, remaining)));
     }
   }, [selectedInstallment, installments]);
@@ -113,9 +119,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-base font-bold text-slate-900">
               {receiptData ? 'Payment Recorded' : 'Record Member Payment'}
@@ -137,7 +143,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         {/* Content */}
         {receiptData ? (
           /* Success Screen with WhatsApp Button */
-          <div className="p-6 text-center space-y-4">
+          <div className="p-6 text-center space-y-4 overflow-y-auto flex-1">
             <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-inner">
               <CheckCircle className="w-8 h-8" />
             </div>
@@ -187,7 +193,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           </div>
         ) : (
           /* Payment Form */
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
             {error && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -195,32 +201,21 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </div>
             )}
 
-            {/* Select Installment */}
+            {/* Select Due Installment */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Select Due Installment
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Select Due Installment</span>
+                <span className="text-[10px] text-slate-400 font-medium">Search name, ticket #, or scheme</span>
               </label>
-              <select
-                value={installmentId}
-                onChange={(e) => {
-                  setInstallmentId(e.target.value);
-                  const sel = installments.find((i) => i.id === e.target.value);
-                  if (sel) {
-                    const rem = Number(sel.net_due_amount) - Number(sel.paid_amount);
-                    setAmountPaid(String(Math.max(0, rem)));
-                  }
+              <DueInstallmentDropdown
+                installments={installments}
+                selectedId={installmentId}
+                onSelect={(sel) => {
+                  setInstallmentId(sel.id);
+                  const rem = Number(sel.net_due_amount) - Number(sel.paid_amount);
+                  setAmountPaid(String(Math.max(0, rem)));
                 }}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-forest-700"
-              >
-                {installments.map((i) => {
-                  const rem = Number(i.net_due_amount) - Number(i.paid_amount);
-                  return (
-                    <option key={i.id} value={i.id}>
-                      {i.member_name} — {i.group_name} (M{i.month_number}, #{i.share_ticket_number}) &bull; Pending {formatINR(rem)}
-                    </option>
-                  );
-                })}
-              </select>
+              />
             </div>
 
             {/* Payment Summary Box */}

@@ -174,9 +174,9 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                   <span>{formatINR(currentRem)} Due</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-bold">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-bold">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Settled (₹0)</span>
+                  <span>{formatINR(Number(currentInst.paid_amount))} Paid</span>
                 </div>
               )}
             </div>
@@ -335,8 +335,8 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                             {formatINR(rem)}
                           </span>
                         ) : (
-                          <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-50/80 px-1.5 py-0.5 rounded-md border border-emerald-200/60">
-                            ₹0 Paid
+                          <span className="inline-block text-[11px] font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                            {formatINR(Number(inst.paid_amount))} Paid
                           </span>
                         )}
                       </div>

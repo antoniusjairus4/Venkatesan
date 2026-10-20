@@ -328,11 +328,49 @@ apiRouter.post('/members', async (req, res) => {
       for (let i = 0; i < count; i++) {
         while (taken.has(ticket)) ticket++;
         taken.add(ticket);
-        await sql`
+        const [newShare] = await sql`
           INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
-          VALUES (${chit_group_id}, ${newMember.id}, ${ticket});
+          VALUES (${chit_group_id}, ${newMember.id}, ${ticket})
+          RETURNING *;
         `;
         ticket++;
+
+        // Automatically generate installment(s) for the new share so it appears in Record Payment immediately
+        const existingMonths = await sql`
+          SELECT DISTINCT month_number, base_amount, dividend_deduction, net_due_amount
+          FROM installments
+          WHERE chit_group_id = ${chit_group_id}
+          ORDER BY month_number ASC;
+        `;
+
+        if (existingMonths.length > 0) {
+          for (const m of existingMonths) {
+            await sql`
+              INSERT INTO installments (
+                chit_group_id, month_number, member_id, share_id,
+                base_amount, dividend_deduction, net_due_amount, paid_amount, status
+              ) VALUES (
+                ${chit_group_id}, ${m.month_number}, ${newMember.id}, ${newShare.id},
+                ${m.base_amount}, ${m.dividend_deduction}, ${m.net_due_amount}, 0, 'PENDING'
+              )
+              ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
+            `;
+          }
+        } else {
+          const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
+          if (group) {
+            await sql`
+              INSERT INTO installments (
+                chit_group_id, month_number, member_id, share_id,
+                base_amount, dividend_deduction, net_due_amount, paid_amount, status
+              ) VALUES (
+                ${chit_group_id}, 1, ${newMember.id}, ${newShare.id},
+                ${group.installment_base_amount}, 0, ${group.installment_base_amount}, 0, 'PENDING'
+              )
+              ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
+            `;
+          }
+        }
       }
     }
 
@@ -392,6 +430,43 @@ apiRouter.post('/member-shares', async (req, res) => {
       `;
       created.push(newShare);
       ticket++;
+
+      // Automatically generate installment(s) for the new share
+      const existingMonths = await sql`
+        SELECT DISTINCT month_number, base_amount, dividend_deduction, net_due_amount
+        FROM installments
+        WHERE chit_group_id = ${chit_group_id}
+        ORDER BY month_number ASC;
+      `;
+
+      if (existingMonths.length > 0) {
+        for (const m of existingMonths) {
+          await sql`
+            INSERT INTO installments (
+              chit_group_id, month_number, member_id, share_id,
+              base_amount, dividend_deduction, net_due_amount, paid_amount, status
+            ) VALUES (
+              ${chit_group_id}, ${m.month_number}, ${member_id}, ${newShare.id},
+              ${m.base_amount}, ${m.dividend_deduction}, ${m.net_due_amount}, 0, 'PENDING'
+            )
+            ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
+          `;
+        }
+      } else {
+        const [grp] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
+        if (grp) {
+          await sql`
+            INSERT INTO installments (
+              chit_group_id, month_number, member_id, share_id,
+              base_amount, dividend_deduction, net_due_amount, paid_amount, status
+            ) VALUES (
+              ${chit_group_id}, 1, ${member_id}, ${newShare.id},
+              ${grp.installment_base_amount}, 0, ${grp.installment_base_amount}, 0, 'PENDING'
+            )
+            ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
+          `;
+        }
+      }
     }
 
     res.status(201).json({ success: true, count: created.length, shares: created });

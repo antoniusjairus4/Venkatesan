@@ -44,7 +44,9 @@ export const ActiveChitsOverview: React.FC<ActiveChitsOverviewProps> = ({
             </p>
           </div>
         ) : (
-          groups.map((group) => {
+          [...groups]
+            .sort((a, b) => Number(a.total_pot_value) - Number(b.total_pot_value))
+            .map((group) => {
             const pot = Number(group.total_pot_value);
             const months = Number(group.total_months);
             const baseAmount = Number(group.installment_base_amount);

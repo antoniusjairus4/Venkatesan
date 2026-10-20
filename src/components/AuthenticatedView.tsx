@@ -77,7 +77,10 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
       ]);
 
       if (sumData) setSummary(sumData);
-      setGroups(grpData);
+      const sortedGroups = [...(grpData || [])].sort(
+        (a, b) => Number(a.total_pot_value) - Number(b.total_pot_value)
+      );
+      setGroups(sortedGroups);
       setMembers(memData);
       setInstallments(instData);
     } catch (err) {

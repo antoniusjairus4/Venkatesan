@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FolderPlus,
   Calendar,
@@ -41,6 +41,13 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   const [transferSub, setTransferSub] = useState<GroupSubscriber | null>(null);
   const [newBuyerName, setNewBuyerName] = useState('');
   const [newBuyerPhone, setNewBuyerPhone] = useState('');
+
+  // Always keep schemes sorted in ascending order of scheme value (1L, 2L, 3L)
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort(
+      (a, b) => Number(a.total_pot_value) - Number(b.total_pot_value)
+    );
+  }, [groups]);
 
   // Load subscribers when a group is selected
   useEffect(() => {
@@ -118,7 +125,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
             <span className="text-[11px] font-bold text-slate-400 mr-1 hidden md:inline">
               Switch Scheme:
             </span>
-            {groups.map((g) => {
+            {sortedGroups.map((g) => {
               const isActive = g.id === selectedGroup.id;
               return (
                 <button
@@ -581,9 +588,9 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
         </button>
       </div>
 
-      {/* Grid of Groups */}
+      {/* Grid of Groups (1L 1st, 2L 2nd, 3L 3rd) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {groups.map((group) => {
+        {sortedGroups.map((group) => {
           const pot = Number(group.total_pot_value);
           const months = Number(group.total_months);
           const base = Number(group.installment_base_amount);

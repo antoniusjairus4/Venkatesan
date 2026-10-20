@@ -213,7 +213,7 @@ apiRouter.get('/chit-groups', async (req, res) => {
       FROM chit_groups g
       LEFT JOIN member_shares s ON g.id = s.chit_group_id
       GROUP BY g.id
-      ORDER BY g.created_at DESC;
+      ORDER BY g.total_pot_value ASC, g.created_at ASC;
     `;
     res.json(groups);
   } catch (error) {

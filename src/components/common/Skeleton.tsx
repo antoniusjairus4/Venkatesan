@@ -541,12 +541,10 @@ export const ChitGroupSubscribersSkeleton: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Tabs */}
+      {/* Search & Subscribers Count */}
       <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         <Skeleton className="h-8 w-full md:w-80 rounded-xl" />
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Skeleton className="h-7 w-28 rounded-xl" />
-          <Skeleton className="h-7 w-28 rounded-xl" />
           <Skeleton className="h-7 w-28 rounded-xl" />
         </div>
       </div>

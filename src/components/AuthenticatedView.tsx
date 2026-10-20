@@ -13,10 +13,8 @@ import { ActiveChitsOverview } from './dashboard/ActiveChitsOverview';
 import { ChitGroupsView } from './views/ChitGroupsView';
 import { MembersView } from './views/MembersView';
 import { PaymentsView } from './views/PaymentsView';
-import { AuctionsView } from './views/AuctionsView';
 
 import { RecordPaymentModal } from './modals/RecordPaymentModal';
-import { RecordAuctionModal } from './modals/RecordAuctionModal';
 import { NewGroupModal } from './modals/NewGroupModal';
 import { NewMemberModal } from './modals/NewMemberModal';
 import {
@@ -65,7 +63,6 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
   // Modals State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
-  const [isAuctionModalOpen, setIsAuctionModalOpen] = useState(false);
   const [isNewGroupModalOpen, setIsNewGroupModalOpen] = useState(false);
   const [isNewMemberModalOpen, setIsNewMemberModalOpen] = useState(false);
 
@@ -273,13 +270,6 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
               />
             )
           )}
-
-          {/* Auctions View */}
-          {activeTab === 'auctions' && (
-            <AuctionsView
-              onRecordAuction={() => setIsAuctionModalOpen(true)}
-            />
-          )}
         </main>
       </div>
 
@@ -300,17 +290,6 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
         }}
         installments={installments}
         selectedInstallment={selectedInstallment}
-      />
-
-      <RecordAuctionModal
-        isOpen={isAuctionModalOpen}
-        onClose={() => setIsAuctionModalOpen(false)}
-        onSuccess={() => {
-          loadAllData();
-          loadAnalytics(selectedChitFilter);
-        }}
-        groups={groups}
-        members={members}
       />
 
       <NewGroupModal

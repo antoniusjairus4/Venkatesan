@@ -156,7 +156,7 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. 20 shares, monthly auction on 10th"
+              placeholder="e.g. 20 shares, 20 months duration"
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700"
             />
           </div>

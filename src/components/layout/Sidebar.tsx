@@ -4,7 +4,6 @@ import {
   Layers,
   Users,
   CreditCard,
-  Hammer,
   PlusCircle,
   ShieldCheck,
 } from 'lucide-react';
@@ -33,7 +32,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: CreditCard,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
-    { id: 'auctions' as NavTab, label: 'Auction Records', icon: Hammer },
   ];
 
   return (

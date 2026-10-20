@@ -46,7 +46,7 @@ export const CashflowBarChart: React.FC<CashflowBarChartProps> = ({ data }) => {
             Cash Inflow vs. Winner Payouts
           </h3>
           <p className="text-[11px] text-slate-500">
-            Monthly member collections compared to auction prize disbursements
+            Monthly member collections compared to prize disbursements
           </p>
         </div>
       </div>

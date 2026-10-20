@@ -114,7 +114,7 @@ You have successfully taken over a chit share in Rajamanickam Chit Funds:
 • Months Completed: ${params.completedMonths} of 20 Months
 • Cumulative Paid Value Credited: ₹${params.totalPreviouslyPaid.toLocaleString('en-IN')}
 • Next Installment Payable: Month ${params.nextMonthNumber}
-• Status: Active & Eligible for upcoming auctions
+• Status: Active Share
 
 The physical passbook and office ledger have been updated in your name.
 

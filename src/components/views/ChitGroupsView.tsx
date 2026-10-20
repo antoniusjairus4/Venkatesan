@@ -8,8 +8,6 @@ import {
   Phone,
   MessageSquare,
   MapPin,
-  Award,
-  CheckCircle2,
   Search,
   Users,
   Layers,
@@ -40,7 +38,6 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   const [subscribers, setSubscribers] = useState<GroupSubscriber[]>([]);
   const [loadingSubscribers, setLoadingSubscribers] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRIZED' | 'ACTIVE'>('ALL');
   const [transferSub, setTransferSub] = useState<GroupSubscriber | null>(null);
   const [newBuyerName, setNewBuyerName] = useState('');
   const [newBuyerPhone, setNewBuyerPhone] = useState('');
@@ -55,7 +52,6 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
     let isMounted = true;
     setLoadingSubscribers(true);
     setSearchQuery('');
-    setStatusFilter('ALL');
 
     fetchGroupSubscribers(selectedGroup.id)
       .then((data) => {
@@ -74,13 +70,8 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
     };
   }, [selectedGroup]);
 
-  // Filter subscribers based on search and status
+  // Filter subscribers based on search
   const filteredSubscribers = subscribers.filter((sub) => {
-    // Status filter
-    if (statusFilter === 'PRIZED' && !sub.is_prized_winner) return false;
-    if (statusFilter === 'ACTIVE' && sub.is_prized_winner) return false;
-
-    // Search query
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     const nameMatch = sub.member_name.toLowerCase().includes(q);
@@ -94,8 +85,6 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   // Calculate scheme subscriber metrics
   const totalSubscribers = subscribers.length;
   const totalSharesTaken = subscribers.reduce((acc, s) => acc + (s.shares_count || 1), 0);
-  const prizedCount = subscribers.filter((s) => s.is_prized_winner).length;
-  const activeCount = totalSubscribers - prizedCount;
 
   // ---------------------------------------------------------------------------
   // View 1: Group Subscribers Drill-Down View
@@ -239,42 +228,11 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
               />
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-              <button
-                onClick={() => setStatusFilter('ALL')}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                  statusFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
+            {/* Total Subscribers Count */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-xs whitespace-nowrap">
                 All Subscribers ({totalSubscribers})
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('PRIZED')}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                  statusFilter === 'PRIZED'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>Yelam Winners ({prizedCount})</span>
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('ACTIVE')}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                  statusFilter === 'ACTIVE'
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Active Bidders ({activeCount})</span>
-              </button>
+              </span>
             </div>
           </div>
         </div>
@@ -383,17 +341,10 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Prize Status Badge */}
-                      {sub.is_prized_winner ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 shrink-0 flex items-center gap-1">
-                          <Award className="w-3 h-3 text-amber-700" />
-                          <span>M{sub.prized_month_number} Won</span>
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                          Active
-                        </span>
-                      )}
+                      {/* Member Status Badge */}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        Active
+                      </span>
                     </div>
 
                     {/* Tickets & Shares Held in THIS Group */}

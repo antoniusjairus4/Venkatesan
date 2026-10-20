@@ -155,7 +155,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 <a
                   href={createSmsUrl(
                     rawPhone,
-                    `வணக்கம் / Hello ${member.name},\n\nRAJAMANICKAM CHIT FUND\nRegards,\nRajamanickam Chit Fund, Salem\nPh: +91 98765 43210`
+                    `வணக்கம் / Hello ${member.name},\n\nRAJAMANICKAM CHIT FUND\nGreetings from Rajamanickam Chit Fund, Salem.\nராஜமாணிக்கம் சிட் பண்ட்-ன் அன்பான வணக்கங்கள்.\n\nRegards / இங்ஙனம்,\nRajamanickam Chit Fund, Salem\nPh: +91 98765 43210`
                   )}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-xs font-bold transition-colors"
                   title="Send SMS via mobile Messages app"

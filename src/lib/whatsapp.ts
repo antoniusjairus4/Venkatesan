@@ -1,5 +1,5 @@
 // Helper utility for generating zero-cost direct mobile messaging links (WhatsApp and SMS)
-// adhering to Rajamanickam Chit Fund communication specifications
+// adhering to Rajamanickam Chit Fund communication specifications in English & Tamil
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -32,18 +32,20 @@ export function createWhatsAppReminderUrl(params: {
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
-Monthly Installment Reminder
+Monthly Installment Reminder / மாதாந்திர தவணை நினைவூட்டல்
 
-• Group: ${params.groupName}
-• Month: ${params.monthNumber}
-• Total Due: ${formatINR(params.netDue)}
-• Balance to Pay: ${formatINR(params.pendingBalance)}
+• Scheme / திட்டம்: ${params.groupName}
+• Month / மாதம்: Month ${params.monthNumber}
+• Total Due / மொத்த தவணை: ${formatINR(params.netDue)}
+• Balance to Pay / பாக்கி தொகை: ${formatINR(params.pendingBalance)}
 
 Kindly clear your balance installment at the earliest.
+தங்களின் நிலுவைத் தவணையை விரைவில் செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
 Payment modes: Cash, GPay, PhonePe, Bank Transfer.
 
-Regards,
-Rajamanickam Chit Fund`;
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -65,46 +67,22 @@ export function createWhatsAppReceiptUrl(params: {
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
-Payment Confirmation Receipt
+Payment Confirmation Receipt / தவணை வரவு ரசீது
 
-• Group: ${params.groupName}
-• Ticket #: ${params.ticketNumber}
-• Month: ${params.monthNumber}
-• Amount Paid: ${formatINR(params.amountPaid)}
-• Payment Mode: ${params.paymentMethod}
-${params.receiptNumber ? `• Receipt #: ${params.receiptNumber}\n` : ''}• Status: ${params.status === 'PAID' ? ' FULLY PAID' : ' PARTIAL (Pending: ' + formatINR(params.remainingBalance) + ')'}
-• Date: ${new Date().toLocaleDateString('en-IN')}
+• Scheme / திட்டம்: ${params.groupName}
+• Ticket / டிக்கெட்: #${params.ticketNumber}
+• Month / மாதம்: Month ${params.monthNumber}
+• Amount Paid / செலுத்திய தொகை: ${formatINR(params.amountPaid)}
+• Payment Mode / முறை: ${params.paymentMethod}
+${params.receiptNumber ? `• Receipt / ரசீது எண்: ${params.receiptNumber}\n` : ''}• Status / நிலை: ${params.status === 'PAID' ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
+• Date / தேதி: ${new Date().toLocaleDateString('en-IN')}
 
 Thank you for your payment!
-Rajamanickam Chit Fund`;
+தங்களின் தவணைத் தொகைக்கு மனமார்ந்த நன்றி!
 
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-}
-
-export function createWhatsAppAuctionNoticeUrl(params: {
-  phone: string;
-  memberName: string;
-  groupName: string;
-  monthNumber: number;
-  auctionDate: string;
-  dividendPerShare: number;
-  netInstallmentDue: number;
-}): string {
-  const phone = cleanPhone(params.phone);
-  const text =
-`வணக்கம் / Hello ${params.memberName},
-
-*RAJAMANICKAM CHIT FUND*
-Month ${params.monthNumber} Yelam (Auction) Update
-
-• Group: ${params.groupName}
-• Dividend Earned: ${formatINR(params.dividendPerShare)} / share
-• Net Installment Payable: ${formatINR(params.netInstallmentDue)}
-
-Kindly make note of your revised installment amount for this month.
-
-Regards,
-Rajamanickam Chit Fund`;
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -113,4 +91,3 @@ export function createWhatsAppMessageUrl(phone: string, text: string): string {
   const cleaned = cleanPhone(phone);
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
 }
-

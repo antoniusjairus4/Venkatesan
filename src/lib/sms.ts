@@ -1,5 +1,5 @@
 // Helper utility for generating native mobile SMS links using the device's inbuilt messaging app
-// adhering to Rajamanickam Chit Fund approved communication templates
+// adhering to Rajamanickam Chit Fund approved bilingual (English & Tamil) communication templates
 
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -26,8 +26,7 @@ export function createSmsUrl(phone: string, text: string): string {
 }
 
 /**
- * 1. New Chit Enrollment / Share Allotment (Native SMS)
- * (Ticket numbers and total shares removed as requested)
+ * 1. New Chit Enrollment / Share Allotment (Native SMS - Bilingual English & Tamil)
  */
 export function createEnrollmentSmsUrl(params: {
   phone: string;
@@ -42,17 +41,18 @@ export function createEnrollmentSmsUrl(params: {
 
 RAJAMANICKAM CHIT FUND
 Chit Scheme Enrollment Confirmation
+புதிய சீட்டு பதிவு உறுதிசெய்தல்
 
-Welcome to Rajamanickam Chit Funds! Your share has been officially registered:
-• Chit Scheme: ${params.groupName}
-• Total Pot Value: ₹${params.potValue.toLocaleString('en-IN')}
-• Duration: 20 Months
-• Base Monthly Installment: ₹${params.baseAmount.toLocaleString('en-IN')}
-• Commencement Date: ${params.startDate}
+• Scheme / திட்டம்: ${params.groupName}
+• Total Pot Value / மொத்த தொகை: ₹${params.potValue.toLocaleString('en-IN')}
+• Duration / கால அளவு: 20 Months (20 மாதங்கள்)
+• Monthly Installment / மாதாந்திர தவணை: ₹${params.baseAmount.toLocaleString('en-IN')}
+• Commencement / தொடக்க தேதி: ${params.startDate}
 
-Your physical chit passbook has been created. Monthly installment updates will be communicated directly to you.
+Your passbook has been created. Monthly installment updates will be communicated directly to you.
+தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
 
-Regards,
+Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
 Ph: +91 98765 43210`;
 
@@ -60,8 +60,7 @@ Ph: +91 98765 43210`;
 }
 
 /**
- * 2. Monthly Installment Received & Cleared (Native SMS)
- * (Receipt number, ticket number, payment mode, date, and amount removed as requested)
+ * 2. Monthly Installment Received & Cleared (Native SMS - Bilingual English & Tamil)
  */
 export function createPaymentClearedSmsUrl(params: {
   phone: string;
@@ -74,22 +73,24 @@ export function createPaymentClearedSmsUrl(params: {
 
 RAJAMANICKAM CHIT FUND
 Monthly Installment Received & Cleared
+மாதாந்திர தவணை பெறப்பட்டது
 
-We have received your installment payment with thanks:
-• Chit Scheme: ${params.groupName}
-• Month: Month ${params.monthNumber}
-• Balance Remaining: ₹0 (Fully Cleared ✓)
+• Scheme / திட்டம்: ${params.groupName}
+• Month / மாதம்: Month ${params.monthNumber}
+• Balance Remaining / மீதம்: ₹0 (Cleared ✓)
 
-Your payment has been credited to your account. Thank you for your prompt clearance!
+Payment has been credited to your account with thanks. Thank you for your prompt clearance!
+தங்களின் தவணைத் தொகை பெறப்பட்டு கணக்கில் வரவு வைக்கப்பட்டது. சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
-Regards,
-Rajamanickam Chit Fund`;
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
 }
 
 /**
- * 3. Taking Another Person's Chit / Takeover (Native SMS - For New Buyer Only)
+ * 3. Taking Another Person's Chit / Takeover (Native SMS - Bilingual English & Tamil)
  */
 export function createTakeoverSmsUrl(params: {
   phone: string;
@@ -105,25 +106,27 @@ export function createTakeoverSmsUrl(params: {
 
 RAJAMANICKAM CHIT FUND
 Chit Takeover Confirmation
+சீட்டு உரிமை மாற்றம் உறுதிசெய்தல்
 
-You have successfully taken over a chit share in Rajamanickam Chit Funds:
-• Chit Scheme: ${params.groupName}
-• Transferred From: ${params.previousMemberName}
-• Months Completed: ${params.completedMonths} of 20 Months
-• Cumulative Paid Value Credited: ₹${params.totalPreviouslyPaid.toLocaleString('en-IN')}
-• Next Installment Payable: Month ${params.nextMonthNumber}
-• Status: Active Share
+• Scheme / திட்டம்: ${params.groupName}
+• Transferred From / யாரிடமிருந்து: ${params.previousMemberName}
+• Months Completed / முடிவடைந்த மாதங்கள்: ${params.completedMonths} / 20 Months
+• Cumulative Paid Value / வரவு வைக்கப்பட்ட தொகை: ₹${params.totalPreviouslyPaid.toLocaleString('en-IN')}
+• Next Installment / அடுத்த தவணை: Month ${params.nextMonthNumber}
+• Status / நிலை: Active Share
 
-The physical passbook and office ledger have been updated in your name.
+Passbook and office ledger have been updated in your name.
+பாஸ்புக் மற்றும் அலுவலக பதிவேட்டில் தங்களின் பெயர் முறைப்படி மாற்றப்பட்டுள்ளது.
 
-Regards,
-Rajamanickam Chit Fund`;
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
 }
 
 /**
- * 4. Scheme Completion & Final Settlement (Native SMS)
+ * 4. Scheme Completion & Final Settlement (Native SMS - Bilingual English & Tamil)
  */
 export function createSettlementSmsUrl(params: {
   phone: string;
@@ -137,20 +140,22 @@ export function createSettlementSmsUrl(params: {
 `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Chit Scheme Successful Completion & Final Settlement
+Chit Scheme Completion & Final Settlement
+சீட்டு முதிர்வு மற்றும் இறுதி தீர்வு
 
-Congratulations! The 20-month cycle for ${params.groupName} has been successfully completed:
-• Total Months Paid: 20 / 20 Months
-• Total Principal Paid: ₹${params.totalPaid.toLocaleString('en-IN')}
-• Total Dividends Earned by You: ₹${params.totalDividends.toLocaleString('en-IN')}
-• Final Maturity Payout Disbursed: ₹${params.totalPotValue.toLocaleString('en-IN')}
-• Account Status: Successfully Closed (No Dues)
+• Scheme / திட்டம்: ${params.groupName}
+• Months Paid / செலுத்திய மாதங்கள்: 20 / 20 Months
+• Total Principal Paid / செலுத்திய அசல்: ₹${params.totalPaid.toLocaleString('en-IN')}
+• Total Dividends Earned / லாப ஈவுத்தொகை: ₹${params.totalDividends.toLocaleString('en-IN')}
+• Final Maturity Payout / முதிர்வு தொகை: ₹${params.totalPotValue.toLocaleString('en-IN')}
+• Status / நிலை: Closed (No Dues / பாக்கி ஏதுமில்லை)
 
 We sincerely thank you for your trust throughout this 20-month journey!
+இந்த 20 மாத கால பயணத்தில் எங்கள் மீது வைத்த தொடர் நம்பிக்கைக்கும் ஆதரவிற்கும் எங்கள் மனமார்ந்த நன்றிகள்!
 
-Warm Regards,
-Rajamanickam Chit Fund, Salem`;
+Warm Regards / அன்புடன்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
 }
-

@@ -43,7 +43,6 @@ Kindly clear your balance installment at the earliest.
 Payment modes: Cash, GPay, PhonePe, Bank Transfer.
 
 Regards,
-Venkatesan
 Rajamanickam Chit Fund`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -77,7 +76,7 @@ ${params.receiptNumber ? `• Receipt #: ${params.receiptNumber}\n` : ''}• Sta
 • Date: ${new Date().toLocaleDateString('en-IN')}
 
 Thank you for your payment!
-Rajamanickam Chit Fund — Venkatesan`;
+Rajamanickam Chit Fund`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -105,7 +104,6 @@ Month ${params.monthNumber} Yelam (Auction) Update
 Kindly make note of your revised installment amount for this month.
 
 Regards,
-Venkatesan
 Rajamanickam Chit Fund`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;

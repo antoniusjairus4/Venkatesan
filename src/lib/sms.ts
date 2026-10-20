@@ -53,7 +53,6 @@ Welcome to Rajamanickam Chit Funds! Your share has been officially registered:
 Your physical chit passbook has been created. Monthly installment updates will be communicated directly to you.
 
 Regards,
-K. Venkatesan
 Rajamanickam Chit Fund, Salem
 Ph: +91 98765 43210`;
 
@@ -84,7 +83,6 @@ We have received your installment payment with thanks:
 Your payment has been credited to your account. Thank you for your prompt clearance!
 
 Regards,
-K. Venkatesan
 Rajamanickam Chit Fund`;
 
   return createSmsUrl(params.phone, text);
@@ -119,7 +117,6 @@ You have successfully taken over a chit share in Rajamanickam Chit Funds:
 The physical passbook and office ledger have been updated in your name.
 
 Regards,
-K. Venkatesan
 Rajamanickam Chit Fund`;
 
   return createSmsUrl(params.phone, text);
@@ -152,7 +149,6 @@ Congratulations! The 20-month cycle for ${params.groupName} has been successfull
 We sincerely thank you for your trust throughout this 20-month journey!
 
 Warm Regards,
-K. Venkatesan
 Rajamanickam Chit Fund, Salem`;
 
   return createSmsUrl(params.phone, text);

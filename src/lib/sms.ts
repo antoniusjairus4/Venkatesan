@@ -60,6 +60,50 @@ Ph: +91 98765 43210`;
 }
 
 /**
+ * 1b. Multiple Chit Schemes Enrollment Confirmation (Native SMS - Bilingual English & Tamil)
+ */
+export function createMultiEnrollmentSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  schemes: Array<{
+    groupName: string;
+    potValue: number;
+    baseAmount: number;
+    ticketCount: number;
+  }>;
+}): string {
+  const schemeLines = params.schemes
+    .map(
+      (s) =>
+        `• ${s.groupName} (${s.ticketCount} ${s.ticketCount === 1 ? 'Ticket' : 'Tickets'}): தவணை ₹${s.baseAmount.toLocaleString('en-IN')}/mo`
+    )
+    .join('\n');
+
+  const totalMonthly = params.schemes.reduce((acc, s) => acc + s.baseAmount, 0);
+
+  const text =
+`வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Chit Schemes Enrollment Confirmation
+புதிய சீட்டுகள் பதிவு உறுதிசெய்தல்
+
+${schemeLines}
+
+• Total Monthly Installment / மொத்த மாதாந்திர தவணை: ₹${totalMonthly.toLocaleString('en-IN')}
+• Duration / கால அளவு: 20 Months (20 மாதங்கள்)
+
+Your passbook has been created. Monthly installment updates will be communicated directly to you.
+தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
+
+  return createSmsUrl(params.phone, text);
+}
+
+/**
  * 2. Monthly Installment Received & Cleared (Native SMS - Bilingual English & Tamil)
  */
 export function createPaymentClearedSmsUrl(params: {

@@ -5,7 +5,6 @@ import {
   Phone,
   MessageSquare,
   MapPin,
-  Shield,
   Layers,
   IndianRupee,
   CheckCircle2,
@@ -168,15 +167,6 @@ export const MembersView: React.FC<MembersViewProps> = ({
                   <p className="text-xs text-slate-500 flex items-center gap-1.5 my-2">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{member.address}</span>
-                  </p>
-                )}
-
-                {member.id_proof_type && (
-                  <p className="text-[11px] text-slate-400 flex items-center gap-1.5 my-1">
-                    <Shield className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>
-                      {member.id_proof_type}: {member.id_proof_number || 'Verified'}
-                    </span>
                   </p>
                 )}
               </div>

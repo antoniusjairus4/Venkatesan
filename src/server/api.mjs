@@ -493,7 +493,17 @@ apiRouter.get('/members', async (req, res) => {
 
 apiRouter.post('/members', async (req, res) => {
   try {
-    const { name, phone, whatsapp_phone, address, id_proof_type, id_proof_number, chit_group_id, share_count } = req.body;
+    const {
+      name,
+      phone,
+      whatsapp_phone,
+      address,
+      id_proof_type,
+      id_proof_number,
+      chit_group_id,
+      share_count,
+      enrolled_schemes,
+    } = req.body;
 
     const [newMember] = await sql`
       INSERT INTO members (name, phone, whatsapp_phone, address, id_proof_type, id_proof_number)
@@ -501,18 +511,25 @@ apiRouter.post('/members', async (req, res) => {
       RETURNING *;
     `;
 
-    // Optionally enroll in a chit group at inception (Rule 2)
-    if (chit_group_id) {
-      const count = Number(share_count) || 1;
-      const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${chit_group_id};`;
+    // Normalize schemes to enroll: support enrolled_schemes array or single chit_group_id
+    const schemesToEnroll = enrolled_schemes && Array.isArray(enrolled_schemes) && enrolled_schemes.length > 0
+      ? enrolled_schemes
+      : (chit_group_id ? [{ chit_group_id, share_count: Number(share_count) || 1 }] : []);
+
+    for (const scheme of schemesToEnroll) {
+      const gid = scheme.chit_group_id;
+      const count = Number(scheme.share_count) || 1;
+
+      const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${gid};`;
       const taken = new Set(existing.map((e) => e.share_ticket_number));
       let ticket = 1;
+
       for (let i = 0; i < count; i++) {
         while (taken.has(ticket)) ticket++;
         taken.add(ticket);
         const [newShare] = await sql`
           INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
-          VALUES (${chit_group_id}, ${newMember.id}, ${ticket})
+          VALUES (${gid}, ${newMember.id}, ${ticket})
           RETURNING *;
         `;
         ticket++;
@@ -521,7 +538,7 @@ apiRouter.post('/members', async (req, res) => {
         const existingMonths = await sql`
           SELECT DISTINCT month_number, base_amount, dividend_deduction, net_due_amount
           FROM installments
-          WHERE chit_group_id = ${chit_group_id}
+          WHERE chit_group_id = ${gid}
           ORDER BY month_number ASC;
         `;
 
@@ -532,21 +549,21 @@ apiRouter.post('/members', async (req, res) => {
                 chit_group_id, month_number, member_id, share_id,
                 base_amount, dividend_deduction, net_due_amount, paid_amount, status
               ) VALUES (
-                ${chit_group_id}, ${m.month_number}, ${newMember.id}, ${newShare.id},
+                ${gid}, ${m.month_number}, ${newMember.id}, ${newShare.id},
                 ${m.base_amount}, ${m.dividend_deduction}, ${m.net_due_amount}, 0, 'PENDING'
               )
               ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
             `;
           }
         } else {
-          const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
+          const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${gid};`;
           if (group) {
             await sql`
               INSERT INTO installments (
                 chit_group_id, month_number, member_id, share_id,
                 base_amount, dividend_deduction, net_due_amount, paid_amount, status
               ) VALUES (
-                ${chit_group_id}, 1, ${newMember.id}, ${newShare.id},
+                ${gid}, 1, ${newMember.id}, ${newShare.id},
                 ${group.installment_base_amount}, 0, ${group.installment_base_amount}, 0, 'PENDING'
               )
               ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
@@ -559,7 +576,7 @@ apiRouter.post('/members', async (req, res) => {
     // Log Activity
     await sql`
       INSERT INTO activity_ledger (event_type, entity_id, description)
-      VALUES ('MEMBER_ADDED', ${newMember.id}, ${`Registered member "${name}" (${phone})`});
+      VALUES ('MEMBER_ADDED', ${newMember.id}, ${`Registered member "${name}" (${phone})${schemesToEnroll.length > 0 ? ` enrolled in ${schemesToEnroll.length} scheme(s)` : ''}`});
     `;
 
     res.status(201).json(newMember);

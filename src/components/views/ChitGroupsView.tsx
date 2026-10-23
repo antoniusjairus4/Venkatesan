@@ -15,6 +15,7 @@ import {
   Ticket,
   Repeat,
   X,
+  Archive,
 } from 'lucide-react';
 import { ChitGroup, GroupSubscriber, fetchGroupSubscribers } from '@/lib/api';
 import {
@@ -24,6 +25,7 @@ import {
   createSettlementSmsUrl,
 } from '@/lib/sms';
 import { Skeleton } from '@/components/common/Skeleton';
+import { PastChitGroupsView } from './PastChitGroupsView';
 
 interface ChitGroupsViewProps {
   groups: ChitGroup[];
@@ -34,6 +36,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   groups,
   onNewGroup,
 }) => {
+  const [viewTab, setViewTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
   const [selectedGroup, setSelectedGroup] = useState<ChitGroup | null>(null);
   const [subscribers, setSubscribers] = useState<GroupSubscriber[]>([]);
   const [loadingSubscribers, setLoadingSubscribers] = useState<boolean>(false);
@@ -564,117 +567,164 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   }
 
   // ---------------------------------------------------------------------------
-  // View 2: All Chit Schemes Overview (Clickable Cards)
+  // View 2: All Chit Schemes Overview (Active Schemes vs. Past Groups)
   // ---------------------------------------------------------------------------
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* Header with Active / Past Groups Tab Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-            Chit Schemes & Groups
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+              Chit Schemes &amp; Groups
+            </h2>
+            {viewTab === 'PAST' && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                Archived Records
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Click on any chit group card below to view its enrolled subscribers and ticket details
+            {viewTab === 'ACTIVE'
+              ? 'Click on any chit group card below to view its enrolled subscribers and ticket details'
+              : 'Browse completed chit schemes, view historical closure snapshots, and export audit reports'}
           </p>
         </div>
 
-        <button
-          onClick={onNewGroup}
-          className="flex items-center justify-center gap-2 py-2.5 px-4 bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
-        >
-          <FolderPlus className="w-4 h-4" />
-          <span>New Chit Group</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          {/* Active vs Past Groups Tab Switcher */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => setViewTab('ACTIVE')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewTab === 'ACTIVE'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Active Groups</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab('PAST')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewTab === 'PAST'
+                  ? 'bg-white text-forest-900 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Archive className="w-3.5 h-3.5 text-forest-700" />
+              <span>Past Groups</span>
+            </button>
+          </div>
+
+          {viewTab === 'ACTIVE' && (
+            <button
+              onClick={onNewGroup}
+              className="flex items-center justify-center gap-2 py-2 px-3 sm:px-4 bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">New Chit Group</span>
+              <span className="sm:hidden">New</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Grid of Groups (1L 1st, 2L 2nd, 3L 3rd) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {sortedGroups.map((group) => {
-          const pot = Number(group.total_pot_value);
-          const months = Number(group.total_months);
-          const base = Number(group.installment_base_amount);
-          const enrolled = Number(group.enrolled_shares || 0);
+      {/* Render Past Groups View or Active Schemes Grid */}
+      {viewTab === 'PAST' ? (
+        <PastChitGroupsView />
+      ) : (
+        /* Grid of Active Groups (1L 1st, 2L 2nd, 3L 3rd) */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {sortedGroups.map((group) => {
+            const pot = Number(group.total_pot_value);
+            const months = Number(group.total_months);
+            const base = Number(group.installment_base_amount);
+            const enrolled = Number(group.enrolled_shares || 0);
 
-          return (
-            <div
-              key={group.id}
-              onClick={() => setSelectedGroup(group)}
-              className="group bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 hover:border-forest-500 hover:shadow-md p-4 shadow-xs transition-all flex flex-col justify-between cursor-pointer"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 group-hover:text-forest-800 transition-colors">
-                      {group.name}
-                    </h3>
-                    <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      <Calendar className="w-3 h-3" />
-                      Starts: {new Date(group.start_date).toLocaleDateString('en-IN')}
+            return (
+              <div
+                key={group.id}
+                onClick={() => setSelectedGroup(group)}
+                className="group bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/80 hover:border-forest-500 hover:shadow-md p-4 shadow-xs transition-all flex flex-col justify-between cursor-pointer"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 group-hover:text-forest-800 transition-colors">
+                        {group.name}
+                      </h3>
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3" />
+                        Starts: {new Date(group.start_date).toLocaleDateString('en-IN')}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        group.status === 'ACTIVE'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      {group.status}
                     </span>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      group.status === 'ACTIVE'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200'
-                    }`}
+                  <div className="my-3 p-3 rounded-xl bg-forest-50/60 border border-forest-100 group-hover:bg-forest-50 group-hover:border-forest-200 transition-all">
+                    <span className="text-[10px] font-bold text-forest-700 uppercase tracking-wider block">
+                      Total Pot Value
+                    </span>
+                    <span className="text-xl font-extrabold text-forest-900">
+                      {formatINR(pot)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 mb-3">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Duration</span>
+                      <strong className="text-slate-800">{months} Months</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Base Monthly</span>
+                      <strong className="text-slate-800">{formatINR(base)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block uppercase">Members / Scheme</span>
+                      <strong className="text-slate-800">
+                        {enrolled} / {group.total_shares || 20} Members
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {group.notes && (
+                    <p className="text-[11px] text-slate-500 italic pb-2.5 mb-2 border-b border-slate-100">
+                      &ldquo;{group.notes}&rdquo;
+                    </p>
+                  )}
+
+                  {/* View Subscribers Click Button */}
+                  <button
+                    type="button"
+                    className="w-full py-2 px-3 rounded-xl bg-forest-50 group-hover:bg-forest-700 text-forest-800 group-hover:text-white text-xs font-bold flex items-center justify-between transition-all cursor-pointer shadow-2xs"
                   >
-                    {group.status}
-                  </span>
-                </div>
-
-                <div className="my-3 p-3 rounded-xl bg-forest-50/60 border border-forest-100 group-hover:bg-forest-50 group-hover:border-forest-200 transition-all">
-                  <span className="text-[10px] font-bold text-forest-700 uppercase tracking-wider block">
-                    Total Pot Value
-                  </span>
-                  <span className="text-xl font-extrabold text-forest-900">
-                    {formatINR(pot)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 mb-3">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Duration</span>
-                    <strong className="text-slate-800">{months} Months</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Base Monthly</span>
-                    <strong className="text-slate-800">{formatINR(base)}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Members / Scheme</span>
-                    <strong className="text-slate-800">
-                      {enrolled} / {group.total_shares || 20} Members
-                    </strong>
-                  </div>
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>View Subscribers ({enrolled} Enrolled)</span>
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 </div>
               </div>
-
-              <div>
-                {group.notes && (
-                  <p className="text-[11px] text-slate-500 italic pb-2.5 mb-2 border-b border-slate-100">
-                    &ldquo;{group.notes}&rdquo;
-                  </p>
-                )}
-
-                {/* View Subscribers Click Button */}
-                <button
-                  type="button"
-                  className="w-full py-2 px-3 rounded-xl bg-forest-50 group-hover:bg-forest-700 text-forest-800 group-hover:text-white text-xs font-bold flex items-center justify-between transition-all cursor-pointer shadow-2xs"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>View Subscribers ({enrolled} Enrolled)</span>
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

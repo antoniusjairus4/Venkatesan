@@ -232,3 +232,92 @@ export async function recordPayment(data: {
   return res.json();
 }
 
+// ------------------------------------------------------------
+// Past Chit Groups / Historical Snapshot Interfaces & API
+// ------------------------------------------------------------
+export interface PastChitGroupSummary {
+  id: string;
+  name: string;
+  total_pot_value: number;
+  total_months: number;
+  total_shares: number;
+  installment_base_amount: number;
+  status: 'COMPLETED' | string;
+  start_date: string;
+  end_date?: string;
+  notes?: string;
+  member_count: number;
+  total_collected: number;
+  total_installments: number;
+  late_payments_count: number;
+}
+
+export interface PastChitSnapshot {
+  group: PastChitGroupSummary;
+  metrics: {
+    member_count: number;
+    total_collected: number;
+    total_installments: number;
+    late_payments_count: number;
+    completion_status: string;
+    start_date: string;
+    end_date?: string;
+  };
+  timeline: Array<{
+    month_number: number;
+    installment_count: number;
+    collected_amount: number;
+    expected_amount: number;
+    late_count: number;
+  }>;
+  members: Array<{
+    member_id: string;
+    member_name: string;
+    phone: string;
+    address?: string;
+    share_ticket_number: number;
+    share_id: string;
+    total_paid: number;
+    late_count: number;
+    is_prized: boolean;
+  }>;
+  late_payments: Array<{
+    id: string;
+    month_number: number;
+    member_name: string;
+    member_phone: string;
+    share_ticket_number: number;
+    net_due_amount: number;
+    paid_amount: number;
+    last_payment_date?: string;
+    notes?: string;
+  }>;
+  installments: Array<{
+    id: string;
+    month_number: number;
+    share_ticket_number: number;
+    member_name: string;
+    member_phone: string;
+    base_amount: number;
+    dividend_deduction: number;
+    net_due_amount: number;
+    paid_amount: number;
+    status: string;
+    last_payment_date?: string;
+    notes?: string;
+  }>;
+}
+
+export async function fetchPastChitGroups(): Promise<PastChitGroupSummary[]> {
+  const res = await fetch('/api/past-chit-groups');
+  if (!res.ok) throw new Error('Failed to fetch past chit groups');
+  return res.json();
+}
+
+export async function fetchPastChitSnapshot(id: string): Promise<PastChitSnapshot> {
+  const res = await fetch(`/api/past-chit-groups/${id}/snapshot`);
+  if (!res.ok) throw new Error('Failed to fetch past chit snapshot');
+  return res.json();
+}
+
+

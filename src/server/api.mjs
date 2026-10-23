@@ -206,15 +206,44 @@ apiRouter.get('/analytics', async (req, res) => {
 // ------------------------------------------------------------
 apiRouter.get('/chit-groups', async (req, res) => {
   try {
-    const groups = await sql`
-      SELECT 
-        g.*,
-        COUNT(s.id)::int as enrolled_shares
-      FROM chit_groups g
-      LEFT JOIN member_shares s ON g.id = s.chit_group_id
-      GROUP BY g.id
-      ORDER BY g.total_pot_value ASC, g.created_at ASC;
-    `;
+    const { status } = req.query;
+    let groups;
+
+    if (status === 'ALL') {
+      groups = await sql`
+        SELECT 
+          g.*,
+          COUNT(s.id)::int as enrolled_shares
+        FROM chit_groups g
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        GROUP BY g.id
+        ORDER BY g.total_pot_value ASC, g.created_at ASC;
+      `;
+    } else if (status) {
+      groups = await sql`
+        SELECT 
+          g.*,
+          COUNT(s.id)::int as enrolled_shares
+        FROM chit_groups g
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        WHERE g.status = ${status}
+        GROUP BY g.id
+        ORDER BY g.total_pot_value ASC, g.created_at ASC;
+      `;
+    } else {
+      // Default to ACTIVE groups only so active views never get polluted by archived data
+      groups = await sql`
+        SELECT 
+          g.*,
+          COUNT(s.id)::int as enrolled_shares
+        FROM chit_groups g
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        WHERE g.status = 'ACTIVE'
+        GROUP BY g.id
+        ORDER BY g.total_pot_value ASC, g.created_at ASC;
+      `;
+    }
+
     res.json(groups);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -253,6 +282,158 @@ apiRouter.get('/chit-groups/:id/subscribers', async (req, res) => {
       ORDER BY MIN(s.share_ticket_number) ASC;
     `;
     res.json(subscribers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
+// Past Chit Groups / Historical Archives (Read-Only)
+// ------------------------------------------------------------
+apiRouter.get('/past-chit-groups', async (req, res) => {
+  try {
+    const groups = await sql`
+      SELECT 
+        g.id,
+        g.name,
+        g.total_pot_value,
+        g.total_months,
+        g.total_shares,
+        g.installment_base_amount,
+        g.status,
+        g.start_date,
+        g.end_date,
+        g.notes,
+        (SELECT COUNT(*)::int FROM member_shares s WHERE s.chit_group_id = g.id) as member_count,
+        (SELECT COALESCE(SUM(paid_amount), 0)::numeric FROM installments i WHERE i.chit_group_id = g.id) as total_collected,
+        (SELECT COUNT(*)::int FROM installments i WHERE i.chit_group_id = g.id) as total_installments,
+        (SELECT COUNT(*)::int FROM installments i WHERE i.chit_group_id = g.id AND (i.notes ILIKE '%delay%' OR i.notes ILIKE '%late%')) as late_payments_count
+      FROM chit_groups g
+      WHERE g.status = 'COMPLETED'
+      ORDER BY g.total_pot_value ASC, g.start_date DESC;
+    `;
+    res.json(groups);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.get('/past-chit-groups/:id/snapshot', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Run all 5 queries in parallel with Promise.all for ultra-fast single round-trip
+    const [
+      [group],
+      timeline,
+      members,
+      late_payments,
+      installments,
+    ] = await Promise.all([
+      // 1. Group info
+      sql`SELECT * FROM chit_groups WHERE id = ${id};`,
+
+      // 2. Timeline across all 20 months
+      sql`
+        SELECT 
+          month_number,
+          COUNT(id)::int as installment_count,
+          COALESCE(SUM(paid_amount), 0)::numeric as collected_amount,
+          COALESCE(SUM(net_due_amount), 0)::numeric as expected_amount,
+          COUNT(CASE WHEN notes ILIKE '%delay%' OR notes ILIKE '%late%' THEN 1 END)::int as late_count
+        FROM installments
+        WHERE chit_group_id = ${id}
+        GROUP BY month_number
+        ORDER BY month_number ASC;
+      `,
+
+      // 3. Member list with their ticket, total paid, and late occurrences
+      sql`
+        SELECT 
+          m.id as member_id,
+          m.name as member_name,
+          m.phone,
+          m.address,
+          s.share_ticket_number,
+          s.id as share_id,
+          COALESCE(SUM(i.paid_amount), 0)::numeric as total_paid,
+          COUNT(CASE WHEN i.notes ILIKE '%delay%' OR i.notes ILIKE '%late%' THEN 1 END)::int as late_count,
+          BOOL_OR(COALESCE(s.is_prized, false)) as is_prized
+        FROM member_shares s
+        JOIN members m ON s.member_id = m.id
+        LEFT JOIN installments i ON i.share_id = s.id AND i.chit_group_id = ${id}
+        WHERE s.chit_group_id = ${id}
+        GROUP BY m.id, m.name, m.phone, m.address, s.share_ticket_number, s.id
+        ORDER BY s.share_ticket_number ASC;
+      `,
+
+      // 4. Late payments list
+      sql`
+        SELECT 
+          i.id,
+          i.month_number,
+          m.name as member_name,
+          m.phone as member_phone,
+          s.share_ticket_number,
+          i.net_due_amount,
+          i.paid_amount,
+          i.last_payment_date,
+          i.notes
+        FROM installments i
+        JOIN members m ON i.member_id = m.id
+        JOIN member_shares s ON i.share_id = s.id
+        WHERE i.chit_group_id = ${id} AND (i.notes ILIKE '%delay%' OR i.notes ILIKE '%late%')
+        ORDER BY i.month_number ASC, s.share_ticket_number ASC;
+      `,
+
+      // 5. Complete installments ledger (for export generation)
+      sql`
+        SELECT 
+          i.id,
+          i.month_number,
+          s.share_ticket_number,
+          m.name as member_name,
+          m.phone as member_phone,
+          i.base_amount,
+          i.dividend_deduction,
+          i.net_due_amount,
+          i.paid_amount,
+          i.status,
+          i.last_payment_date,
+          i.notes
+        FROM installments i
+        JOIN members m ON i.member_id = m.id
+        JOIN member_shares s ON i.share_id = s.id
+        WHERE i.chit_group_id = ${id}
+        ORDER BY i.month_number ASC, s.share_ticket_number ASC;
+      `,
+    ]);
+
+    if (!group) {
+      return res.status(404).json({ error: 'Past chit group not found.' });
+    }
+
+    // Calculate aggregated metrics
+    const totalCollected = installments.reduce((acc, row) => acc + Number(row.paid_amount || 0), 0);
+    const totalInstallments = installments.length;
+    const latePaymentsCount = late_payments.length;
+
+    res.json({
+      group,
+      metrics: {
+        member_count: members.length || Number(group.total_shares || 20),
+        total_collected: totalCollected,
+        total_installments: totalInstallments,
+        late_payments_count: latePaymentsCount,
+        completion_status: group.status || 'COMPLETED',
+        start_date: group.start_date,
+        end_date: group.end_date,
+      },
+      timeline,
+      members,
+      late_payments,
+      installments,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -516,6 +697,7 @@ apiRouter.get('/installments', async (req, res) => {
         ORDER BY g.name, i.month_number, s.share_ticket_number;
       `;
     } else {
+      // By default without a specific group ID, return only installments belonging to ACTIVE groups
       rows = await sql`
         SELECT 
           i.*,
@@ -527,6 +709,7 @@ apiRouter.get('/installments', async (req, res) => {
         JOIN members m ON i.member_id = m.id
         JOIN chit_groups g ON i.chit_group_id = g.id
         JOIN member_shares s ON i.share_id = s.id
+        WHERE g.status = 'ACTIVE'
         ORDER BY g.name, i.month_number, s.share_ticket_number;
       `;
     }

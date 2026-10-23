@@ -115,17 +115,13 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Duration (Months)
+                Duration & Scheme Size
               </label>
-              <input
-                type="number"
-                min="5"
-                max="60"
-                value={months}
-                onChange={(e) => setMonths(e.target.value)}
-                required
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
-              />
+              <div className="w-full px-3.5 py-2.5 bg-slate-100/90 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>20 Months</span>
+                <span className="text-slate-300">&bull;</span>
+                <span className="text-forest-800">20 Members</span>
+              </div>
             </div>
           </div>
 

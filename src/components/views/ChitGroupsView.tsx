@@ -210,10 +210,10 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
 
               <div>
                 <span className="text-[10px] font-bold text-forest-700 uppercase tracking-wider block">
-                  Shares Enrolled
+                  Members Enrolled
                 </span>
                 <span className="text-base sm:text-lg font-black text-forest-900">
-                  {totalSharesTaken} / {maxShares}
+                  {totalSharesTaken} / {maxShares || 20} Members
                 </span>
               </div>
             </div>
@@ -644,9 +644,9 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                     <strong className="text-slate-800">{formatINR(base)}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Shares Assigned</span>
+                    <span className="text-[10px] text-slate-400 block uppercase">Members / Scheme</span>
                     <strong className="text-slate-800">
-                      {enrolled} / {group.total_shares}
+                      {enrolled} / {group.total_shares || 20} Members
                     </strong>
                   </div>
                 </div>

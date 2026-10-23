@@ -262,14 +262,15 @@ apiRouter.post('/chit-groups', async (req, res) => {
   try {
     const { name, total_pot_value, total_months, start_date, notes } = req.body;
     const totalPot = Number(total_pot_value);
-    const months = Number(total_months);
+    const months = Number(total_months) || 20;
+    const totalShares = 20; // Standard 20 months & 20 members/shares per scheme
     const baseAmount = totalPot / months;
 
     const [newGroup] = await sql`
       INSERT INTO chit_groups (
         name, total_pot_value, total_months, total_shares, installment_base_amount, start_date, notes
       ) VALUES (
-        ${name}, ${totalPot}, ${months}, ${months}, ${baseAmount}, ${start_date}, ${notes || null}
+        ${name}, ${totalPot}, ${months}, ${totalShares}, ${baseAmount}, ${start_date}, ${notes || null}
       )
       RETURNING *;
     `;

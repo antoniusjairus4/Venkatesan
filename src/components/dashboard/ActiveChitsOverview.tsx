@@ -91,16 +91,16 @@ export const ActiveChitsOverview: React.FC<ActiveChitsOverviewProps> = ({
                     <span className="font-semibold">{formatINR(baseAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase text-slate-400 block font-medium">Shares</span>
-                    <span className="font-semibold">{enrolled} / {group.total_shares}</span>
+                    <span className="text-[10px] uppercase text-slate-400 block font-medium">Members</span>
+                    <span className="font-semibold">{enrolled} / 20 Members</span>
                   </div>
                 </div>
 
                 {/* Enrollment Progress Bar */}
                 <div className="mt-2.5">
                   <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                    <span>Member Allocation</span>
-                    <span className="font-bold">{progress}%</span>
+                    <span>Members Enrolled ({enrolled} of 20)</span>
+                    <span className="font-bold text-forest-800">{progress}%</span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                     <div

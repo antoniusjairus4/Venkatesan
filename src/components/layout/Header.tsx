@@ -26,9 +26,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
             <h1 className="text-sm font-bold text-forest-900 tracking-tight leading-tight">
               RAJAMANICKAM CHIT FUND
             </h1>
-            <p className="text-[10px] uppercase tracking-wider text-gold-600 font-semibold">
-              Admin Portal &bull; Salem
-            </p>
           </div>
         </div>
 

@@ -5,7 +5,6 @@ import {
   Users,
   CreditCard,
   PlusCircle,
-  ShieldCheck,
 } from 'lucide-react';
 import { NavTab } from './BottomNav';
 
@@ -86,19 +85,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
-
-      {/* Security Status Box */}
-      <div className="pt-4 border-t border-slate-100 mt-auto">
-        <div className="p-3 rounded-xl bg-forest-50/70 border border-forest-100">
-          <div className="flex items-center gap-2 text-forest-800 text-xs font-bold mb-1">
-            <ShieldCheck className="w-4 h-4 text-forest-700" />
-            <span>Admin Active</span>
-          </div>
-          <p className="text-[11px] text-forest-700/80 leading-snug">
-            Single Admin Mode: Venkatesan. Cryptographically signed session.
-          </p>
-        </div>
-      </div>
     </aside>
   );
 };

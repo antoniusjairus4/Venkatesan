@@ -245,3 +245,90 @@ Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
 }
+
+/**
+ * 6. Bidding Winner Notification (Native SMS - Bilingual English & Tamil)
+ * Targeted strictly ONLY to the winning bidder
+ */
+export function getBiddingWinnerText(params: {
+  winnerName: string;
+  groupName: string;
+  monthNumber: number;
+  payoutAmount: number;
+  tasiruAmount: number;
+}): string {
+  return `வணக்கம் / Hello ${params.winnerName},
+
+வாழ்த்துக்கள்! RAJAMANICKAM CHIT FUND
+Bidding Winner Notification / ஏல வெற்றி அறிவிப்பு
+
+• Scheme / திட்டம்: ${params.groupName}
+• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• Prize Payout / வெற்றித் தொகை: ₹${params.payoutAmount.toLocaleString('en-IN')}
+• Tasiru (Discount) / தள்ளுபடி: ₹${params.tasiruAmount.toLocaleString('en-IN')}
+
+Congratulations! You are the prized winning bidder for Month ${params.monthNumber} in ${params.groupName}.
+Your winning prize payout will be disbursed shortly to your registered bank account.
+தங்களின் ஏல வெற்றித் தொகை விரைவில் தங்களுக்கு அலுவலகம் மூலம் வழங்கப்படும்.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
+}
+
+export function createBiddingWinnerSmsUrl(params: {
+  phone: string;
+  winnerName: string;
+  groupName: string;
+  monthNumber: number;
+  payoutAmount: number;
+  tasiruAmount: number;
+}): string {
+  const text = getBiddingWinnerText(params);
+  return createSmsUrl(params.phone, text);
+}
+
+/**
+ * 7. Monthly Bidding Member Due Notification (Native SMS - Bilingual English & Tamil)
+ * Sent to scheme members detailing this month's calculated installment (Winning Amount / 20)
+ */
+export function getMonthlyBiddingDueText(params: {
+  memberName: string;
+  groupName: string;
+  monthNumber: number;
+  winnerPayoutAmount: number;
+  installmentDue: number;
+  dividendSavings: number;
+}): string {
+  return `வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Monthly Installment Due Notice / மாதாந்திர தவணை அறிவிப்பு
+
+• Scheme / திட்டம்: ${params.groupName}
+• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• This Month Due / செலுத்த வேண்டிய தொகை: ₹${params.installmentDue.toLocaleString('en-IN')}
+• Dividend Savings / தள்ளுபடி சேமிப்பு: ₹${params.dividendSavings.toLocaleString('en-IN')}
+(ஏலத் தொகை: ₹${params.winnerPayoutAmount.toLocaleString('en-IN')} ÷ 20 நபர்கள் = ₹${params.installmentDue.toLocaleString('en-IN')})
+
+Kindly clear your installment on or before the due date.
+Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
+குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Salem
+Ph: +91 98765 43210`;
+}
+
+export function createMonthlyBiddingDueSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  groupName: string;
+  monthNumber: number;
+  winnerPayoutAmount: number;
+  installmentDue: number;
+  dividendSavings: number;
+}): string {
+  const text = getMonthlyBiddingDueText(params);
+  return createSmsUrl(params.phone, text);
+}

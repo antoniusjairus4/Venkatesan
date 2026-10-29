@@ -5,6 +5,7 @@ import {
   Users,
   CreditCard,
   PlusCircle,
+  Gavel,
 } from 'lucide-react';
 import { NavTab } from './BottomNav';
 
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'dashboard' as NavTab, label: 'Dashboard Overview', icon: Home },
     { id: 'chits' as NavTab, label: 'Chit Groups', icon: Layers },
+    { id: 'bidding' as NavTab, label: 'Monthly Bidding', icon: Gavel },
     { id: 'members' as NavTab, label: 'Member Directory', icon: Users },
     {
       id: 'payments' as NavTab,

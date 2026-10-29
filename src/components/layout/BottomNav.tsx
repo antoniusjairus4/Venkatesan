@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, Layers, Users, CreditCard } from 'lucide-react';
+import { Home, Layers, Users, CreditCard, Gavel } from 'lucide-react';
 
-export type NavTab = 'dashboard' | 'chits' | 'members' | 'payments';
+export type NavTab = 'dashboard' | 'chits' | 'bidding' | 'members' | 'payments';
 
 interface BottomNavProps {
   activeTab: NavTab;
@@ -17,6 +17,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const tabs = [
     { id: 'dashboard' as NavTab, label: 'Home', icon: Home },
     { id: 'chits' as NavTab, label: 'Chits', icon: Layers },
+    { id: 'bidding' as NavTab, label: 'Bidding', icon: Gavel },
     { id: 'members' as NavTab, label: 'Members', icon: Users },
     {
       id: 'payments' as NavTab,

@@ -11,6 +11,7 @@ import { DefaulterAgingBuckets } from './dashboard/DefaulterAgingBuckets';
 import { PendingCollectionsList } from './dashboard/PendingCollectionsList';
 import { ActiveChitsOverview } from './dashboard/ActiveChitsOverview';
 import { ChitGroupsView } from './views/ChitGroupsView';
+import { BiddingView } from './views/BiddingView';
 import { MembersView } from './views/MembersView';
 import { PaymentsView } from './views/PaymentsView';
 
@@ -248,8 +249,21 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
               <ChitGroupsView
                 groups={groups}
                 onNewGroup={() => setIsNewGroupModalOpen(true)}
+                onGoToBidding={() => setActiveTab('bidding')}
+                onGroupDeleted={() => {
+                  loadAllData();
+                  loadAnalytics(selectedChitFilter);
+                }}
               />
             )
+          )}
+
+          {/* Monthly Bidding & Calculations View */}
+          {activeTab === 'bidding' && (
+            <BiddingView
+              onGoToChits={() => setActiveTab('chits')}
+              onGoToPayments={() => setActiveTab('payments')}
+            />
           )}
 
           {/* Members View */}

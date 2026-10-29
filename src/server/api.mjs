@@ -1010,6 +1010,372 @@ apiRouter.post('/record-transfer', async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// MONTHLY BIDDING & YELAM ENDPOINTS (RULE 4 & CLIENT SPECIFICATION)
+// Slider-based month (1 to 20), 1L/2L/3L schemes, automated math:
+// Tasiru = Pot - Winner Payout
+// Monthly Due per Member = Winner Payout / 20 Members
+// Dividend per Member = Tasiru / 20 Members
+// ------------------------------------------------------------
+
+apiRouter.get('/bidding/month/:month', async (req, res) => {
+  try {
+    const month = parseInt(req.params.month, 10);
+    if (isNaN(month) || month < 1 || month > 20) {
+      return res.status(400).json({ error: 'Invalid month number (must be 1 to 20).' });
+    }
+
+    // 1. Fetch all active chit groups sorted in ascending order of pot value (1L, 2L, 3L)
+    const groups = await sql`
+      SELECT * FROM chit_groups
+      WHERE status = 'ACTIVE'
+      ORDER BY total_pot_value ASC;
+    `;
+
+    // 2. Fetch auctions recorded for this specific month
+    const monthAuctions = await sql`
+      SELECT 
+        a.*,
+        m.name as winning_member_name,
+        m.phone as winning_member_phone,
+        m.whatsapp_phone as winning_member_whatsapp,
+        s.share_ticket_number
+      FROM auctions a
+      JOIN members m ON a.winning_member_id = m.id
+      JOIN member_shares s ON a.winning_share_id = s.id
+      WHERE a.month_number = ${month};
+    `;
+
+    // 3. For each group, get enrolled subscribers and payment statuses
+    const schemesData = await Promise.all(
+      groups.map(async (group) => {
+        const auction = monthAuctions.find((a) => a.chit_group_id === group.id) || null;
+
+        const subscribers = await sql`
+          SELECT 
+            ms.id as share_id,
+            ms.share_ticket_number,
+            ms.is_prized,
+            ms.prized_month_number,
+            m.id as member_id,
+            m.name as member_name,
+            m.phone as member_phone,
+            m.whatsapp_phone,
+            m.address,
+            COALESCE(i.net_due_amount, ${Number(group.installment_base_amount)}) as month_due_amount,
+            COALESCE(i.paid_amount, 0) as month_paid_amount,
+            COALESCE(i.status, 'PENDING') as installment_status
+          FROM member_shares ms
+          JOIN members m ON ms.member_id = m.id
+          LEFT JOIN installments i ON (i.share_id = ms.id AND i.month_number = ${month})
+          WHERE ms.chit_group_id = ${group.id} AND ms.status = 'ACTIVE'
+          ORDER BY ms.share_ticket_number ASC;
+        `;
+
+        return {
+          group: {
+            id: group.id,
+            name: group.name,
+            total_pot_value: Number(group.total_pot_value),
+            total_months: Number(group.total_months),
+            total_shares: Number(group.total_shares),
+            installment_base_amount: Number(group.installment_base_amount),
+            commission_percent: Number(group.commission_percent || 0),
+            status: group.status,
+            start_date: group.start_date,
+          },
+          auction: auction
+            ? {
+                id: auction.id,
+                chit_group_id: auction.chit_group_id,
+                month_number: Number(auction.month_number),
+                auction_date: auction.auction_date,
+                winning_member_id: auction.winning_member_id,
+                winning_member_name: auction.winning_member_name,
+                winning_member_phone: auction.winning_member_phone,
+                winning_member_whatsapp: auction.winning_member_whatsapp,
+                share_ticket_number: auction.share_ticket_number,
+                winning_share_id: auction.winning_share_id,
+                payout_amount: Number(auction.payout_amount),
+                bid_discount_amount: Number(auction.bid_discount_amount),
+                dividend_per_share: Number(auction.dividend_per_share),
+                net_installment_due: Number(auction.net_installment_due),
+                notes: auction.notes,
+              }
+            : null,
+          subscribers: subscribers.map((s) => ({
+            share_id: s.share_id,
+            share_ticket_number: s.share_ticket_number,
+            is_prized: Boolean(s.is_prized),
+            prized_month_number: s.prized_month_number,
+            member_id: s.member_id,
+            member_name: s.member_name,
+            member_phone: s.member_phone,
+            whatsapp_phone: s.whatsapp_phone,
+            address: s.address,
+            month_due_amount: Number(s.month_due_amount),
+            month_paid_amount: Number(s.month_paid_amount),
+            installment_status: s.installment_status,
+          })),
+        };
+      })
+    );
+
+    // 4. Summarize all 20 months status for the slider overview
+    const allAuctions = await sql`
+      SELECT chit_group_id, month_number FROM auctions;
+    `;
+    const monthsStatus = Array.from({ length: 20 }, (_, idx) => {
+      const m = idx + 1;
+      const count = allAuctions.filter((a) => Number(a.month_number) === m).length;
+      return {
+        month: m,
+        auctionsCount: count,
+        totalSchemes: groups.length,
+        isCompleted: count >= groups.length && groups.length > 0,
+        hasAny: count > 0,
+      };
+    });
+
+    res.json({
+      selectedMonth: month,
+      schemes: schemesData,
+      monthsStatus,
+    });
+  } catch (error) {
+    console.error('Error fetching monthly bidding data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.post('/bidding/record', async (req, res) => {
+  try {
+    const {
+      chit_group_id,
+      month_number,
+      winning_member_id,
+      winner_payout_amount,
+      auction_date,
+      notes,
+    } = req.body;
+
+    const mNum = parseInt(month_number, 10);
+    if (isNaN(mNum) || mNum < 1 || mNum > 20) {
+      return res.status(400).json({ error: 'Month number must be between 1 and 20.' });
+    }
+
+    const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    const totalPot = Number(group.total_pot_value);
+    const totalShares = Number(group.total_shares || 20);
+    const payoutAmount = Number(winner_payout_amount);
+
+    if (isNaN(payoutAmount) || payoutAmount <= 0 || payoutAmount > totalPot) {
+      return res.status(400).json({
+        error: `Winning amount must be between ₹1 and ₹${totalPot.toLocaleString('en-IN')}.`,
+      });
+    }
+
+    // Client's exact chit fund math logic:
+    // 1. Tasiru (Discount) = total pot - winner payout (e.g. 100,000 - 95,000 = 5,000 or 100,000 - 80,000 = 20,000)
+    const bidDiscount = totalPot - payoutAmount;
+    // 2. Monthly installment due per member = winner payout / 20 members (e.g. 95,000 / 20 = 4,750 or 80,000 / 20 = 4,000)
+    const netInstallmentDue = Math.round(payoutAmount / totalShares);
+    // 3. Dividend per member = tasiru / 20 members (e.g. 5,000 / 20 = 250 or 20,000 / 20 = 1,000)
+    const dividendPerShare = Math.round(bidDiscount / totalShares);
+    const organizerCommission = 0.00;
+    const netDividendPool = bidDiscount;
+
+    // Find winning member's share in this group
+    let [winningShare] = await sql`
+      SELECT id, share_ticket_number FROM member_shares
+      WHERE chit_group_id = ${chit_group_id} AND member_id = ${winning_member_id}
+      LIMIT 1;
+    `;
+
+    if (!winningShare) {
+      const [newShare] = await sql`
+        INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
+        VALUES (
+          ${chit_group_id}, ${winning_member_id},
+          (SELECT COALESCE(MAX(share_ticket_number), 0) + 1 FROM member_shares WHERE chit_group_id = ${chit_group_id})
+        )
+        RETURNING id, share_ticket_number;
+      `;
+      winningShare = newShare;
+    }
+
+    const aDate = auction_date || new Date().toISOString().split('T')[0];
+
+    // Upsert auction record
+    const [auction] = await sql`
+      INSERT INTO auctions (
+        chit_group_id, month_number, auction_date, winning_member_id, winning_share_id,
+        bid_discount_amount, organizer_commission, net_dividend_pool, dividend_per_share,
+        net_installment_due, payout_amount, notes
+      ) VALUES (
+        ${chit_group_id}, ${mNum}, ${aDate}, ${winning_member_id}, ${winningShare.id},
+        ${bidDiscount}, ${organizerCommission}, ${netDividendPool}, ${dividendPerShare},
+        ${netInstallmentDue}, ${payoutAmount}, ${notes || null}
+      )
+      ON CONFLICT (chit_group_id, month_number)
+      DO UPDATE SET
+        auction_date = EXCLUDED.auction_date,
+        winning_member_id = EXCLUDED.winning_member_id,
+        winning_share_id = EXCLUDED.winning_share_id,
+        bid_discount_amount = EXCLUDED.bid_discount_amount,
+        organizer_commission = EXCLUDED.organizer_commission,
+        net_dividend_pool = EXCLUDED.net_dividend_pool,
+        dividend_per_share = EXCLUDED.dividend_per_share,
+        net_installment_due = EXCLUDED.net_installment_due,
+        payout_amount = EXCLUDED.payout_amount,
+        notes = EXCLUDED.notes
+      RETURNING *;
+    `;
+
+    // Mark winning share as prized for this month
+    await sql`
+      UPDATE member_shares
+      SET is_prized = TRUE, prized_month_number = ${mNum}
+      WHERE id = ${winningShare.id};
+    `;
+
+    // Update / upsert installments for all members in this group for this month with the calculated due amount
+    const shares = await sql`
+      SELECT id, member_id FROM member_shares 
+      WHERE chit_group_id = ${chit_group_id} AND status = 'ACTIVE';
+    `;
+
+    for (const share of shares) {
+      await sql`
+        INSERT INTO installments (
+          chit_group_id, month_number, member_id, share_id,
+          base_amount, dividend_deduction, net_due_amount, status
+        ) VALUES (
+          ${chit_group_id}, ${mNum}, ${share.member_id}, ${share.id},
+          ${Number(group.installment_base_amount)}, ${dividendPerShare}, ${netInstallmentDue}, 'PENDING'
+        )
+        ON CONFLICT (chit_group_id, month_number, share_id)
+        DO UPDATE SET
+          dividend_deduction = ${dividendPerShare},
+          net_due_amount = ${netInstallmentDue};
+      `;
+    }
+
+    // Log Activity
+    const [member] = await sql`SELECT name FROM members WHERE id = ${winning_member_id};`;
+    const memberName = member?.name || 'Member';
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES (
+        'AUCTION_HELD', ${auction.id}, ${chit_group_id},
+        ${`Month ${mNum} Bidding recorded for ${group.name}. Winner: ${memberName}, Winning Amount: ₹${payoutAmount.toLocaleString('en-IN')}, Tasiru: ₹${bidDiscount.toLocaleString('en-IN')}, Per Member Due: ₹${netInstallmentDue.toLocaleString('en-IN')}`}
+      );
+    `;
+
+    res.status(201).json({
+      success: true,
+      auction,
+      math: {
+        totalPot,
+        winnerPayout: payoutAmount,
+        tasiru: bidDiscount,
+        membersCount: totalShares,
+        installmentPerMember: netInstallmentDue,
+        dividendPerMember: dividendPerShare,
+      },
+    });
+  } catch (error) {
+    console.error('Error recording bidding:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.delete('/bidding/group/:chit_group_id/month/:month_number', async (req, res) => {
+  try {
+    const { chit_group_id, month_number } = req.params;
+    const mNum = parseInt(month_number, 10);
+
+    const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    const [auction] = await sql`
+      SELECT * FROM auctions
+      WHERE chit_group_id = ${chit_group_id} AND month_number = ${mNum};
+    `;
+
+    if (!auction) {
+      return res.status(404).json({ error: 'No auction found for this group and month.' });
+    }
+
+    // Reset prized status on winning share
+    if (auction.winning_share_id) {
+      await sql`
+        UPDATE member_shares
+        SET is_prized = FALSE, prized_month_number = NULL
+        WHERE id = ${auction.winning_share_id};
+      `;
+    }
+
+    // Reset installments back to base amount with 0 dividend deduction
+    const baseAmount = Number(group.installment_base_amount);
+    await sql`
+      UPDATE installments
+      SET dividend_deduction = 0, net_due_amount = ${baseAmount}
+      WHERE chit_group_id = ${chit_group_id} AND month_number = ${mNum};
+    `;
+
+    // Delete the auction
+    await sql`
+      DELETE FROM auctions
+      WHERE id = ${auction.id};
+    `;
+
+    // Log activity
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES (
+        'AUCTION_DELETED', ${auction.id}, ${chit_group_id},
+        ${`Month ${mNum} Bidding record deleted for ${group.name}. Installments reset to base ₹${baseAmount.toLocaleString('en-IN')}.`}
+      );
+    `;
+
+    res.json({ success: true, message: 'Bidding record deleted and installments reset.' });
+  } catch (error) {
+    console.error('Error deleting bidding record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
+// CHIT GROUP DELETION WITH FULL CASCADE & SAFETY CHECKS
+// ------------------------------------------------------------
+apiRouter.delete('/chit-groups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${id};`;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    // Clean up related child data
+    await sql`
+      DELETE FROM payment_transactions 
+      WHERE installment_id IN (SELECT id FROM installments WHERE chit_group_id = ${id});
+    `;
+    await sql`DELETE FROM installments WHERE chit_group_id = ${id};`;
+    await sql`DELETE FROM auctions WHERE chit_group_id = ${id};`;
+    await sql`DELETE FROM chit_transfers WHERE chit_group_id = ${id};`;
+    await sql`DELETE FROM member_shares WHERE chit_group_id = ${id};`;
+    await sql`DELETE FROM activity_ledger WHERE chit_group_id = ${id};`;
+    await sql`DELETE FROM chit_groups WHERE id = ${id};`;
+
+    res.json({ success: true, message: `Chit group '${group.name}' deleted successfully.` });
+  } catch (error) {
+    console.error('Error deleting chit group:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
 // Activity Ledger
 // ------------------------------------------------------------
 apiRouter.get('/activity-ledger', async (req, res) => {

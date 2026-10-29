@@ -321,4 +321,102 @@ export async function fetchPastChitSnapshot(id: string): Promise<PastChitSnapsho
   return res.json();
 }
 
+// ------------------------------------------------------------
+// Monthly Bidding & Calculations Interfaces & API Functions
+// ------------------------------------------------------------
+export interface MonthSchemeBiddingData {
+  group: ChitGroup;
+  auction: {
+    id: string;
+    chit_group_id: string;
+    month_number: number;
+    auction_date: string;
+    winning_member_id: string;
+    winning_member_name: string;
+    winning_member_phone: string;
+    winning_member_whatsapp?: string;
+    share_ticket_number: number;
+    winning_share_id: string;
+    payout_amount: number;
+    bid_discount_amount: number;
+    dividend_per_share: number;
+    net_installment_due: number;
+    notes?: string;
+  } | null;
+  subscribers: Array<{
+    share_id: string;
+    share_ticket_number: number;
+    is_prized: boolean;
+    prized_month_number?: number | null;
+    member_id: string;
+    member_name: string;
+    member_phone: string;
+    whatsapp_phone?: string;
+    address?: string;
+    month_due_amount: number;
+    month_paid_amount: number;
+    installment_status: string;
+  }>;
+}
+
+export interface MonthBiddingResponse {
+  selectedMonth: number;
+  schemes: MonthSchemeBiddingData[];
+  monthsStatus: Array<{
+    month: number;
+    auctionsCount: number;
+    totalSchemes: number;
+    isCompleted: boolean;
+    hasAny: boolean;
+  }>;
+}
+
+export async function fetchMonthBiddingData(month: number): Promise<MonthBiddingResponse> {
+  const res = await fetch(`/api/bidding/month/${month}`);
+  if (!res.ok) throw new Error('Failed to fetch monthly bidding data');
+  return res.json();
+}
+
+export async function recordBidding(data: {
+  chit_group_id: string;
+  month_number: number;
+  winning_member_id: string;
+  winner_payout_amount: number;
+  auction_date?: string;
+  notes?: string;
+}) {
+  const res = await fetch('/api/bidding/record', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to record bidding');
+  }
+  return res.json();
+}
+
+export async function deleteBidding(chitGroupId: string, monthNumber: number) {
+  const res = await fetch(`/api/bidding/group/${chitGroupId}/month/${monthNumber}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete bidding record');
+  }
+  return res.json();
+}
+
+export async function deleteChitGroup(groupId: string) {
+  const res = await fetch(`/api/chit-groups/${groupId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete chit group');
+  }
+  return res.json();
+}
+
 

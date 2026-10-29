@@ -91,3 +91,73 @@ export function createWhatsAppMessageUrl(phone: string, text: string): string {
   const cleaned = cleanPhone(phone);
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Bidding Winner Notification via WhatsApp (Sent strictly to winner)
+ */
+export function createBiddingWinnerWhatsAppUrl(params: {
+  phone: string;
+  winnerName: string;
+  groupName: string;
+  monthNumber: number;
+  payoutAmount: number;
+  tasiruAmount: number;
+}): string {
+  const phone = cleanPhone(params.phone);
+  const text =
+`வணக்கம் / Hello ${params.winnerName},
+
+🎉 *வாழ்த்துக்கள்! RAJAMANICKAM CHIT FUND*
+*Bidding Winner Notification / ஏல வெற்றி அறிவிப்பு*
+
+• *Scheme / திட்டம்:* ${params.groupName}
+• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• *Prize Payout / வெற்றித் தொகை:* ${formatINR(params.payoutAmount)}
+• *Tasiru (Discount) / தள்ளுபடி:* ${formatINR(params.tasiruAmount)}
+
+Congratulations! You are the prized winning bidder for Month ${params.monthNumber} in ${params.groupName}.
+Your prize payout will be disbursed to your account shortly.
+தங்களின் ஏல வெற்றித் தொகை விரைவில் அலுவலகம் மூலம் வழங்கப்படும்.
+
+Regards / இங்ஙனம்,
+*Rajamanickam Chit Fund, Salem*
+Ph: +91 98765 43210`;
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * Monthly Member Due Notification via WhatsApp (Winning Amount / 20)
+ */
+export function createMonthlyBiddingDueWhatsAppUrl(params: {
+  phone: string;
+  memberName: string;
+  groupName: string;
+  monthNumber: number;
+  winnerPayoutAmount: number;
+  installmentDue: number;
+  dividendSavings: number;
+}): string {
+  const phone = cleanPhone(params.phone);
+  const text =
+`வணக்கம் / Hello ${params.memberName},
+
+*RAJAMANICKAM CHIT FUND*
+*Monthly Installment Due Notice / மாதாந்திர தவணை அறிவிப்பு*
+
+• *Scheme / திட்டம்:* ${params.groupName}
+• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• *This Month Due / செலுத்த வேண்டிய தொகை:* ${formatINR(params.installmentDue)}
+• *Dividend Savings / தள்ளுபடி சேமிப்பு:* ${formatINR(params.dividendSavings)}
+_(ஏலத் தொகை: ${formatINR(params.winnerPayoutAmount)} ÷ 20 நபர்கள் = ${formatINR(params.installmentDue)})_
+
+Kindly clear your installment on or before the due date.
+Payment Modes: Cash, GPay, PhonePe, Bank Transfer.
+குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
+
+Regards / இங்ஙனம்,
+*Rajamanickam Chit Fund, Salem*
+Ph: +91 98765 43210`;
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}

@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS chit_groups (
     start_date DATE NOT NULL,
     end_date DATE,
     notes TEXT,
+    moved_as_completed BOOLEAN DEFAULT FALSE,
+    moved_as_completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

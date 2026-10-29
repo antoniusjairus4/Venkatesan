@@ -19,8 +19,15 @@ import {
   Gavel,
   Trash2,
   AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
-import { ChitGroup, GroupSubscriber, fetchGroupSubscribers, deleteChitGroup } from '@/lib/api';
+import {
+  ChitGroup,
+  GroupSubscriber,
+  fetchGroupSubscribers,
+  deleteChitGroup,
+  moveChitGroupAsCompleted,
+} from '@/lib/api';
 import {
   formatINR,
   createEnrollmentSmsUrl,
@@ -53,6 +60,8 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   const [newBuyerPhone, setNewBuyerPhone] = useState('');
   const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<ChitGroup | null>(null);
   const [isDeletingGroup, setIsDeletingGroup] = useState<boolean>(false);
+  const [moveConfirmGroup, setMoveConfirmGroup] = useState<ChitGroup | null>(null);
+  const [isMovingCompleted, setIsMovingCompleted] = useState<boolean>(false);
 
   const handleDeleteGroup = async () => {
     if (!deleteConfirmGroup) return;
@@ -68,6 +77,23 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
       alert((err as Error).message || 'Failed to delete chit group.');
     } finally {
       setIsDeletingGroup(false);
+    }
+  };
+
+  const handleMoveCompleted = async () => {
+    if (!moveConfirmGroup) return;
+    try {
+      setIsMovingCompleted(true);
+      await moveChitGroupAsCompleted(moveConfirmGroup.id);
+      setMoveConfirmGroup(null);
+      if (selectedGroup && selectedGroup.id === moveConfirmGroup.id) {
+        setSelectedGroup(null);
+      }
+      if (onGroupDeleted) onGroupDeleted();
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to move chit scheme as completed.');
+    } finally {
+      setIsMovingCompleted(false);
     }
   };
 
@@ -147,14 +173,26 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
             <span className="text-xs font-bold text-slate-400 hidden sm:inline">
               Viewing Group Roster
             </span>
-            <button
-              onClick={() => setDeleteConfirmGroup(selectedGroup)}
-              className="flex items-center gap-1 py-1 px-2.5 rounded-xl text-rose-600 hover:text-rose-800 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer ml-auto sm:ml-2"
-              title="Delete this Chit Scheme"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete Scheme</span>
-            </button>
+            <div className="flex items-center gap-1.5 ml-auto sm:ml-2">
+              <button
+                type="button"
+                onClick={() => setMoveConfirmGroup(selectedGroup)}
+                className="flex items-center gap-1 py-1 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                title="Move this scheme as completed to historical archives"
+              >
+                <Archive className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Move as Completed</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmGroup(selectedGroup)}
+                className="flex items-center gap-1 py-1 px-2.5 rounded-xl text-rose-600 hover:text-rose-800 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer"
+                title="Delete this Chit Scheme"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Scheme</span>
+              </button>
+            </div>
           </div>
 
           {/* Quick Switcher Pills for all groups */}
@@ -679,7 +717,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
 
       {/* Render Past Groups View or Active Schemes Grid */}
       {viewTab === 'PAST' ? (
-        <PastChitGroupsView />
+        <PastChitGroupsView onSchemeRestored={onGroupDeleted} />
       ) : (
         /* Grid of Active Groups (1L 1st, 2L 2nd, 3L 3rd) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -717,6 +755,18 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                       >
                         {group.status}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoveConfirmGroup(group);
+                        }}
+                        className="py-1 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                        title="Move as Completed: Store to moved_as_completed and archive to Past Groups"
+                      >
+                        <Archive className="w-3 h-3 text-emerald-700" />
+                        <span>Move as Completed</span>
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -824,6 +874,79 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                 className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
                 {isDeletingGroup ? 'Deleting...' : 'Yes, Delete Chit Group'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Chit Group as Completed Confirmation Modal */}
+      {moveConfirmGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 text-emerald-700">
+              <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                <Archive className="w-6 h-6 text-emerald-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Move Scheme as Completed?
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Archive scheme to historical records
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to move <strong>{moveConfirmGroup.name}</strong> (
+              {formatINR(Number(moveConfirmGroup.total_pot_value))}) as completed?
+            </p>
+
+            <div className="p-3.5 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-[11px] text-emerald-950 space-y-2">
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Stores in database field: <code className="bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono font-bold">moved_as_completed = true</code>
+                </span>
+              </p>
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Safely transitions to <strong>Past Groups</strong> historical archive.</span>
+              </p>
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Retains all subscribers, payments, and PDF / Excel closure reporting.</span>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMoveConfirmGroup(null)}
+                disabled={isMovingCompleted}
+                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMoveCompleted}
+                disabled={isMovingCompleted}
+                className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isMovingCompleted ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>Yes, Move as Completed</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

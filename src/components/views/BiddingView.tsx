@@ -19,13 +19,16 @@ import {
   Phone,
   Layers,
   Users,
+  Archive,
 } from 'lucide-react';
 import {
   fetchMonthBiddingData,
   recordBidding,
   deleteBidding,
+  moveChitGroupAsCompleted,
   MonthBiddingResponse,
   MonthSchemeBiddingData,
+  ChitGroup,
 } from '@/lib/api';
 import {
   formatINR,
@@ -71,6 +74,8 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
   const [membersModalScheme, setMembersModalScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [deleteConfirmScheme, setDeleteConfirmScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [moveConfirmGroup, setMoveConfirmGroup] = useState<ChitGroup | null>(null);
+  const [isMovingCompleted, setIsMovingCompleted] = useState<boolean>(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Load bidding data whenever selectedMonth changes
@@ -177,6 +182,21 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
       alert((err as Error).message || 'Failed to delete bidding record.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Handle moving an entire scheme as completed
+  const handleMoveCompleted = async () => {
+    if (!moveConfirmGroup) return;
+    try {
+      setIsMovingCompleted(true);
+      await moveChitGroupAsCompleted(moveConfirmGroup.id);
+      setMoveConfirmGroup(null);
+      await loadMonthData(selectedMonth);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to move scheme as completed.');
+    } finally {
+      setIsMovingCompleted(false);
     }
   };
 
@@ -704,22 +724,35 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   )}
                 </div>
 
-                {/* Card Footer: Enrolled Subscriber Count */}
-                <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                {/* Card Footer: Enrolled Subscriber Count & Actions */}
+                <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Users className="w-3.5 h-3.5 text-slate-400" />
                     <span>{scheme.subscribers.length} / {totalMembers} Members Enrolled</span>
                   </span>
 
-                  {isFinalized && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setDeleteConfirmScheme(scheme)}
-                      className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                      type="button"
+                      onClick={() => setMoveConfirmGroup(scheme.group)}
+                      className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Move this entire scheme as completed to historical archives"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Delete Bidding</span>
+                      <Archive className="w-3 h-3 text-emerald-700" />
+                      <span>Move as Completed</span>
                     </button>
-                  )}
+
+                    {isFinalized && (
+                      <button
+                        onClick={() => setDeleteConfirmScheme(scheme)}
+                        className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                        title="Delete Month Bidding"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete Bidding</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1048,6 +1081,81 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                 className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Yes, Delete Bidding'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------ */}
+      {/* MODAL 4: Move Entire Scheme as Completed Modal */}
+      {/* ------------------------------------------------------------ */}
+      {moveConfirmGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 text-emerald-700">
+              <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                <Archive className="w-6 h-6 text-emerald-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Move Scheme as Completed?
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Archive scheme to historical records
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to move <strong>{moveConfirmGroup.name}</strong> (
+              {formatINR(Number(moveConfirmGroup.total_pot_value))}) as completed?
+            </p>
+
+            <div className="p-3.5 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-[11px] text-emerald-950 space-y-2">
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Stores in database: <code className="bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono font-bold">moved_as_completed = true</code>
+                </span>
+              </p>
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Safely transitions scheme into <strong>Past Groups</strong> section.</span>
+              </p>
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Historical records, bidding history, and PDF / Excel reports remain accessible.</span>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMoveConfirmGroup(null)}
+                disabled={isMovingCompleted}
+                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMoveCompleted}
+                disabled={isMovingCompleted}
+                className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isMovingCompleted ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>Yes, Move as Completed</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

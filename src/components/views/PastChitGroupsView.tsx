@@ -14,6 +14,8 @@ import {
   BarChart3,
   Layers,
   Sparkles,
+  Search,
+  RotateCcw,
 } from 'lucide-react';
 import {
   BarChart,
@@ -29,6 +31,7 @@ import {
   PastChitSnapshot,
   fetchPastChitGroups,
   fetchPastChitSnapshot,
+  restoreChitGroupActive,
 } from '@/lib/api';
 import { formatINR } from '@/lib/sms';
 import {
@@ -57,7 +60,11 @@ function formatDate(dateStr?: string): string {
   }
 }
 
-export const PastChitGroupsView: React.FC = () => {
+interface PastChitGroupsViewProps {
+  onSchemeRestored?: () => void;
+}
+
+export const PastChitGroupsView: React.FC<PastChitGroupsViewProps> = ({ onSchemeRestored }) => {
   const [pastGroups, setPastGroups] = useState<PastChitGroupSummary[]>([]);
   const [loadingGroups, setLoadingGroups] = useState<boolean>(true);
   const [selectedPotValue, setSelectedPotValue] = useState<number>(100000);
@@ -65,43 +72,72 @@ export const PastChitGroupsView: React.FC = () => {
   const [snapshot, setSnapshot] = useState<PastChitSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState<boolean>(false);
   const [exportingType, setExportingType] = useState<'pdf' | 'excel' | 'all' | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [restoreConfirm, setRestoreConfirm] = useState<boolean>(false);
+  const [isRestoring, setIsRestoring] = useState<boolean>(false);
+
+  const loadGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const data = await fetchPastChitGroups();
+      setPastGroups(data);
+      // Auto-select first matching group for default pot value (100000)
+      const matching = data.filter((g) => Number(g.total_pot_value) === selectedPotValue);
+      if (matching.length > 0 && !selectedGroupId) {
+        setSelectedGroupId(matching[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load past chit groups:', err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
 
   // Load all past completed groups once
   useEffect(() => {
-    let isMounted = true;
-    setLoadingGroups(true);
-
-    fetchPastChitGroups()
-      .then((data) => {
-        if (!isMounted) return;
-        setPastGroups(data);
-        setLoadingGroups(false);
-
-        // Auto-select first matching group for default pot value (100000)
-        const matching = data.filter((g) => Number(g.total_pot_value) === 100000);
-        if (matching.length > 0) {
-          setSelectedGroupId(matching[0].id);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load past chit groups:', err);
-        if (isMounted) setLoadingGroups(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+    loadGroups();
   }, []);
+
+  const handleRestore = async () => {
+    if (!snapshot) return;
+    try {
+      setIsRestoring(true);
+      await restoreChitGroupActive(snapshot.group.id);
+      setRestoreConfirm(false);
+      setSelectedGroupId(null);
+      setSnapshot(null);
+      await loadGroups();
+      if (onSchemeRestored) onSchemeRestored();
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to restore scheme.');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // Filter groups by search query
+  const filteredPastGroups = useMemo(() => {
+    if (!searchQuery.trim()) return pastGroups;
+    const q = searchQuery.toLowerCase();
+    return pastGroups.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        (g.notes && g.notes.toLowerCase().includes(q)) ||
+        g.total_pot_value.toString().includes(q) ||
+        (g.start_date && g.start_date.includes(q)) ||
+        (g.end_date && g.end_date.includes(q))
+    );
+  }, [pastGroups, searchQuery]);
 
   // Filter periods for the currently selected chit scheme type
   const periodsForScheme = useMemo(() => {
-    return pastGroups.filter((g) => Number(g.total_pot_value) === selectedPotValue);
-  }, [pastGroups, selectedPotValue]);
+    return filteredPastGroups.filter((g) => Number(g.total_pot_value) === selectedPotValue);
+  }, [filteredPastGroups, selectedPotValue]);
 
   // When chit scheme changes, auto-select its first completed period
   const handleSelectScheme = (pot: number) => {
     setSelectedPotValue(pot);
-    const matching = pastGroups.filter((g) => Number(g.total_pot_value) === pot);
+    const matching = filteredPastGroups.filter((g) => Number(g.total_pot_value) === pot);
     if (matching.length > 0) {
       setSelectedGroupId(matching[0].id);
     } else {
@@ -210,6 +246,18 @@ export const PastChitGroupsView: React.FC = () => {
       {/* 1. Step 1: Scheme Selector & Period Tabs */}
       {/* --------------------------------------------------------------------- */}
       <div className="bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        {/* Search for Old Chits and Schemes */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search old chits and schemes by name, notes, pot value (e.g. 1 Lakh), or period date..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-forest-500/20 focus:border-forest-500 transition-all placeholder:text-slate-400"
+          />
+        </div>
+
         {/* Scheme Type Selector */}
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
@@ -219,7 +267,7 @@ export const PastChitGroupsView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {SCHEME_OPTIONS.map((opt) => {
               const isSelected = selectedPotValue === opt.value;
-              const count = pastGroups.filter((g) => Number(g.total_pot_value) === opt.value).length;
+              const count = filteredPastGroups.filter((g) => Number(g.total_pot_value) === opt.value).length;
 
               return (
                 <button
@@ -296,16 +344,18 @@ export const PastChitGroupsView: React.FC = () => {
                   >
                     <Clock className={`w-3.5 h-3.5 ${isSelected ? 'text-forest-200' : 'text-slate-400'}`} />
                     <span>
-                      {startStr} &rarr; {endStr}
+                      {period.name ? `${period.name}: ` : ''}{startStr} &rarr; {endStr}
                     </span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                         isSelected
                           ? 'bg-forest-800 text-forest-100'
-                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : period.moved_as_completed
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
-                      Completed
+                      {period.moved_as_completed ? 'Moved as Completed ✓' : 'Completed'}
                     </span>
                   </button>
                 );
@@ -332,11 +382,17 @@ export const PastChitGroupsView: React.FC = () => {
           {/* Top Period Header & Export Action Bar */}
           <div className="bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-slate-900 text-white">
                   ARCHIVED • READ-ONLY
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {snapshot.group.moved_as_completed && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>Moved as Completed</span>
+                  </span>
+                )}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 border border-teal-200">
                   100% RECOVERED
                 </span>
               </div>
@@ -354,8 +410,19 @@ export const PastChitGroupsView: React.FC = () => {
               </p>
             </div>
 
-            {/* Export Buttons */}
+            {/* Export & Actions Buttons */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Restore Scheme to Active Button */}
+              <button
+                type="button"
+                onClick={() => setRestoreConfirm(true)}
+                className="flex items-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
+                title="Restore this scheme back to active chits"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Restore to Active</span>
+              </button>
+
               {/* Export PDF */}
               <button
                 type="button"
@@ -542,6 +609,71 @@ export const PastChitGroupsView: React.FC = () => {
               <span className="text-[11px] text-slate-400 italic">
                 Full 400-row records exported in PDF &amp; Excel sheets
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Scheme to Active Confirmation Modal */}
+      {restoreConfirm && snapshot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 text-forest-800">
+              <div className="p-2.5 rounded-2xl bg-forest-50 border border-forest-100">
+                <RotateCcw className="w-6 h-6 text-forest-800" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Restore Scheme to Active?
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Reopen this scheme into active groups
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to restore <strong>{snapshot.group.name}</strong> ({formatINR(Number(snapshot.group.total_pot_value))}) back to Active Chit Schemes?
+            </p>
+
+            <div className="p-3.5 bg-forest-50/80 border border-forest-100 rounded-2xl text-[11px] text-forest-950 space-y-2">
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-forest-700 shrink-0" />
+                <span>Resets <code className="bg-forest-100 text-forest-800 px-1 py-0.5 rounded font-mono font-bold">moved_as_completed = false</code> and status to ACTIVE.</span>
+              </p>
+              <p className="font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-forest-700 shrink-0" />
+                <span>Scheme will reappear immediately on Active Chit Groups and Monthly Bidding.</span>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRestoreConfirm(false)}
+                disabled={isRestoring}
+                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={isRestoring}
+                className="py-2.5 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isRestoring ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Restoring...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Yes, Restore to Active</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

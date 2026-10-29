@@ -27,7 +27,7 @@ apiRouter.get('/dashboard-summary', async (req, res) => {
   try {
     const [groupsCount] = await sql`SELECT COUNT(*)::int as count FROM chit_groups;`;
     const [membersCount] = await sql`SELECT COUNT(*)::int as count FROM members;`;
-    const [activeChits] = await sql`SELECT COUNT(*)::int as count FROM chit_groups WHERE status = 'ACTIVE';`;
+    const [activeChits] = await sql`SELECT COUNT(*)::int as count FROM chit_groups WHERE status = 'ACTIVE' AND (moved_as_completed IS FALSE OR moved_as_completed IS NULL);`;
     const [collections] = await sql`SELECT COALESCE(SUM(amount_paid), 0)::numeric as total FROM payment_transactions;`;
     const [pendingDues] = await sql`SELECT COALESCE(SUM(net_due_amount - paid_amount), 0)::numeric as total FROM installments WHERE status != 'PAID';`;
 
@@ -219,6 +219,17 @@ apiRouter.get('/chit-groups', async (req, res) => {
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
       `;
+    } else if (status === 'COMPLETED') {
+      groups = await sql`
+        SELECT 
+          g.*,
+          COUNT(s.id)::int as enrolled_shares
+        FROM chit_groups g
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        WHERE g.status = 'COMPLETED' OR g.moved_as_completed = TRUE
+        GROUP BY g.id
+        ORDER BY g.total_pot_value ASC, g.created_at ASC;
+      `;
     } else if (status) {
       groups = await sql`
         SELECT 
@@ -226,7 +237,7 @@ apiRouter.get('/chit-groups', async (req, res) => {
           COUNT(s.id)::int as enrolled_shares
         FROM chit_groups g
         LEFT JOIN member_shares s ON g.id = s.chit_group_id
-        WHERE g.status = ${status}
+        WHERE g.status = ${status} AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
       `;
@@ -238,7 +249,7 @@ apiRouter.get('/chit-groups', async (req, res) => {
           COUNT(s.id)::int as enrolled_shares
         FROM chit_groups g
         LEFT JOIN member_shares s ON g.id = s.chit_group_id
-        WHERE g.status = 'ACTIVE'
+        WHERE (g.status = 'ACTIVE' OR g.status = 'UPCOMING') AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
       `;
@@ -304,12 +315,14 @@ apiRouter.get('/past-chit-groups', async (req, res) => {
         g.start_date,
         g.end_date,
         g.notes,
+        g.moved_as_completed,
+        g.moved_as_completed_at,
         (SELECT COUNT(*)::int FROM member_shares s WHERE s.chit_group_id = g.id) as member_count,
         (SELECT COALESCE(SUM(paid_amount), 0)::numeric FROM installments i WHERE i.chit_group_id = g.id) as total_collected,
         (SELECT COUNT(*)::int FROM installments i WHERE i.chit_group_id = g.id) as total_installments,
         (SELECT COUNT(*)::int FROM installments i WHERE i.chit_group_id = g.id AND (i.notes ILIKE '%delay%' OR i.notes ILIKE '%late%')) as late_payments_count
       FROM chit_groups g
-      WHERE g.status = 'COMPLETED'
+      WHERE g.status = 'COMPLETED' OR g.moved_as_completed = TRUE
       ORDER BY g.total_pot_value ASC, g.start_date DESC;
     `;
     res.json(groups);
@@ -1027,7 +1040,7 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
     // 1. Fetch all active chit groups sorted in ascending order of pot value (1L, 2L, 3L)
     const groups = await sql`
       SELECT * FROM chit_groups
-      WHERE status = 'ACTIVE'
+      WHERE (status = 'ACTIVE' OR status = 'UPCOMING') AND (moved_as_completed IS FALSE OR moved_as_completed IS NULL)
       ORDER BY total_pot_value ASC;
     `;
 
@@ -1371,6 +1384,72 @@ apiRouter.delete('/chit-groups/:id', async (req, res) => {
     res.json({ success: true, message: `Chit group '${group.name}' deleted successfully.` });
   } catch (error) {
     console.error('Error deleting chit group:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
+// CHIT GROUP MOVE AS COMPLETED & RESTORE ACTIVE
+// ------------------------------------------------------------
+apiRouter.post('/chit-groups/:id/move-as-completed', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [group] = await sql`
+      UPDATE chit_groups
+      SET status = 'COMPLETED',
+          moved_as_completed = TRUE,
+          moved_as_completed_at = NOW(),
+          end_date = COALESCE(end_date, CURRENT_DATE),
+          updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES (
+        'GROUP_MOVED_AS_COMPLETED',
+        ${id},
+        ${id},
+        ${`Chit scheme '${group.name}' flagged as moved_as_completed = true and archived to Past Groups.`}
+      );
+    `;
+
+    res.json({ success: true, message: `Chit scheme '${group.name}' moved as completed.`, group });
+  } catch (error) {
+    console.error('Error moving chit group as completed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.post('/chit-groups/:id/restore-active', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [group] = await sql`
+      UPDATE chit_groups
+      SET status = 'ACTIVE',
+          moved_as_completed = FALSE,
+          moved_as_completed_at = NULL,
+          updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES (
+        'GROUP_RESTORED_ACTIVE',
+        ${id},
+        ${id},
+        ${`Chit scheme '${group.name}' restored back to active schemes.`}
+      );
+    `;
+
+    res.json({ success: true, message: `Chit scheme '${group.name}' restored to active.`, group });
+  } catch (error) {
+    console.error('Error restoring chit group to active:', error);
     res.status(500).json({ error: error.message });
   }
 });

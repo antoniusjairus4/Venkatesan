@@ -19,6 +19,8 @@ export interface ChitGroup {
   end_date?: string;
   enrolled_shares?: number;
   notes?: string;
+  moved_as_completed?: boolean;
+  moved_as_completed_at?: string;
   created_at: string;
 }
 
@@ -247,6 +249,8 @@ export interface PastChitGroupSummary {
   start_date: string;
   end_date?: string;
   notes?: string;
+  moved_as_completed?: boolean;
+  moved_as_completed_at?: string;
   member_count: number;
   total_collected: number;
   total_installments: number;
@@ -415,6 +419,30 @@ export async function deleteChitGroup(groupId: string) {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || 'Failed to delete chit group');
+  }
+  return res.json();
+}
+
+export async function moveChitGroupAsCompleted(groupId: string) {
+  const res = await fetch(`/api/chit-groups/${groupId}/move-as-completed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to move chit group as completed');
+  }
+  return res.json();
+}
+
+export async function restoreChitGroupActive(groupId: string) {
+  const res = await fetch(`/api/chit-groups/${groupId}/restore-active`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to restore chit group');
   }
   return res.json();
 }

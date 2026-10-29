@@ -1056,3 +1056,4 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
     </div>
   );
 };
+

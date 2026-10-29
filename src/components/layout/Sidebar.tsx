@@ -13,14 +13,13 @@ interface SidebarProps {
   activeTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   pendingCount?: number;
-  onOpenRecordPayment: () => void;
+  onOpenRecordPayment?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
   pendingCount = 0,
-  onOpenRecordPayment,
 }) => {
   const navItems = [
     { id: 'dashboard' as NavTab, label: 'Dashboard Overview', icon: Home },
@@ -37,17 +36,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 p-4 shrink-0 shadow-xs sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
-      {/* Quick Action Shortcuts */}
-      <div className="mb-4">
-        <button
-          onClick={onOpenRecordPayment}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-forest-700 hover:bg-forest-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Record Payment</span>
-        </button>
-      </div>
-
       {/* Navigation Links */}
       <nav className="space-y-1.5 flex-1">
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">

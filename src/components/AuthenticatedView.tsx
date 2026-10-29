@@ -288,6 +288,7 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
               <PaymentsView
                 installments={installments}
                 onRecordPayment={(inst) => handleOpenPayment(inst)}
+                onGoToBidding={() => setActiveTab('bidding')}
               />
             )
           )}

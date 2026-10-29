@@ -1076,7 +1076,15 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
             m.address,
             COALESCE(i.net_due_amount, ${Number(group.installment_base_amount)}) as month_due_amount,
             COALESCE(i.paid_amount, 0) as month_paid_amount,
-            COALESCE(i.status, 'PENDING') as installment_status
+            COALESCE(i.status, 'PENDING') as installment_status,
+            (
+              SELECT a2.month_number 
+              FROM auctions a2 
+              WHERE a2.chit_group_id = ${group.id} 
+                AND a2.winning_member_id = m.id 
+                AND a2.month_number != ${month}
+              LIMIT 1
+            ) as won_in_other_month
           FROM member_shares ms
           JOIN members m ON ms.member_id = m.id
           LEFT JOIN installments i ON (i.share_id = ms.id AND i.month_number = ${month})
@@ -1128,6 +1136,7 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
             month_due_amount: Number(s.month_due_amount),
             month_paid_amount: Number(s.month_paid_amount),
             installment_status: s.installment_status,
+            won_in_other_month: s.won_in_other_month != null ? Number(s.won_in_other_month) : null,
           })),
         };
       })
@@ -1189,22 +1198,46 @@ apiRouter.post('/bidding/record', async (req, res) => {
       });
     }
 
-    // Client's exact chit fund math logic:
-    // 1. Tasiru (Discount) = total pot - winner payout (e.g. 100,000 - 95,000 = 5,000 or 100,000 - 80,000 = 20,000)
+    // STRICT 1-WINNER RULE:
+    // Only 1 chit taken per month. Once a member wins in any month, they cannot take another month!
+    const [existingWin] = await sql`
+      SELECT month_number FROM auctions
+      WHERE chit_group_id = ${chit_group_id} 
+        AND winning_member_id = ${winning_member_id}
+        AND month_number != ${mNum}
+      LIMIT 1;
+    `;
+    if (existingWin) {
+      return res.status(400).json({
+        error: `Member has already won Month ${existingWin.month_number} for this chit scheme! Each member can only take a chit once in the 20-month cycle.`,
+      });
+    }
+
+    // Client's exact Tamil Nadu Chit Fund Math:
+    // 1. Thalubadi (Discount) = Gross Pot Value - Winner Payout (e.g. 100,000 - 75,000 = 25,000)
     const bidDiscount = totalPot - payoutAmount;
-    // 2. Monthly installment due per member = winner payout / 20 members (e.g. 95,000 / 20 = 4,750 or 80,000 / 20 = 4,000)
-    const netInstallmentDue = Math.round(payoutAmount / totalShares);
-    // 3. Dividend per member = tasiru / 20 members (e.g. 5,000 / 20 = 250 or 20,000 / 20 = 1,000)
-    const dividendPerShare = Math.round(bidDiscount / totalShares);
-    const organizerCommission = 0.00;
-    const netDividendPool = bidDiscount;
+    // 2. Kasiru (Foreman Commission) = 5% of Gross Pot (e.g. 100,000 * 5% = 5,000)
+    const organizerCommission = Math.round((totalPot * 5) / 100);
+    // 3. Net Discount Pool for Distribution = Thalubadi - Kasiru (e.g. 25,000 - 5,000 = 20,000)
+    const netDividendPool = Math.max(0, bidDiscount - organizerCommission);
+    // 4. Dividend per Member = Net Discount Pool / 20 Members (e.g. 20,000 / 20 = 1,000)
+    const dividendPerShare = Math.floor(netDividendPool / totalShares);
+    // 5. Monthly Installment Due = Base Monthly Contribution - Dividend (e.g. 5,000 - 1,000 = 4,000)
+    const baseMonthly = Number(group.installment_base_amount) || Math.round(totalPot / totalShares);
+    const netInstallmentDue = Math.max(0, baseMonthly - dividendPerShare);
 
     // Find winning member's share in this group
     let [winningShare] = await sql`
-      SELECT id, share_ticket_number FROM member_shares
+      SELECT id, share_ticket_number, is_prized, prized_month_number FROM member_shares
       WHERE chit_group_id = ${chit_group_id} AND member_id = ${winning_member_id}
       LIMIT 1;
     `;
+
+    if (winningShare && winningShare.is_prized && winningShare.prized_month_number !== mNum) {
+      return res.status(400).json({
+        error: `Member share #${winningShare.share_ticket_number} was already prized in Month ${winningShare.prized_month_number}. Only 1 prize per subscriber is allowed.`,
+      });
+    }
 
     if (!winningShare) {
       const [newShare] = await sql`
@@ -1266,7 +1299,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
           base_amount, dividend_deduction, net_due_amount, status
         ) VALUES (
           ${chit_group_id}, ${mNum}, ${share.member_id}, ${share.id},
-          ${Number(group.installment_base_amount)}, ${dividendPerShare}, ${netInstallmentDue}, 'PENDING'
+          ${baseMonthly}, ${dividendPerShare}, ${netInstallmentDue}, 'PENDING'
         )
         ON CONFLICT (chit_group_id, month_number, share_id)
         DO UPDATE SET
@@ -1282,7 +1315,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
       VALUES (
         'AUCTION_HELD', ${auction.id}, ${chit_group_id},
-        ${`Month ${mNum} Bidding recorded for ${group.name}. Winner: ${memberName}, Winning Amount: ₹${payoutAmount.toLocaleString('en-IN')}, Tasiru: ₹${bidDiscount.toLocaleString('en-IN')}, Per Member Due: ₹${netInstallmentDue.toLocaleString('en-IN')}`}
+        ${`Month ${mNum} Bidding recorded for ${group.name}. Winner: ${memberName}, Winning Amount: ₹${payoutAmount.toLocaleString('en-IN')}, Thalubadi: ₹${bidDiscount.toLocaleString('en-IN')}, Kasiru (5%): ₹${organizerCommission.toLocaleString('en-IN')}, Per Member Due: ₹${netInstallmentDue.toLocaleString('en-IN')}`}
       );
     `;
 
@@ -1292,7 +1325,10 @@ apiRouter.post('/bidding/record', async (req, res) => {
       math: {
         totalPot,
         winnerPayout: payoutAmount,
-        tasiru: bidDiscount,
+        baseMonthly,
+        thalubadi: bidDiscount,
+        kasiru: organizerCommission,
+        netDiscount: netDividendPool,
         membersCount: totalShares,
         installmentPerMember: netInstallmentDue,
         dividendPerMember: dividendPerShare,
@@ -1356,6 +1392,218 @@ apiRouter.delete('/bidding/group/:chit_group_id/month/:month_number', async (req
     res.json({ success: true, message: 'Bidding record deleted and installments reset.' });
   } catch (error) {
     console.error('Error deleting bidding record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
+// MONTHLY PAYMENTS LEDGER (MONTHS 1 TO 20)
+// Brings payment recording directly inside monthly payment view
+// Organized by month 1..20, with client-configured bidding math
+// ------------------------------------------------------------
+apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
+  try {
+    const month = parseInt(req.params.month, 10);
+    if (isNaN(month) || month < 1 || month > 20) {
+      return res.status(400).json({ error: 'Month must be between 1 and 20.' });
+    }
+
+    const groups = await sql`
+      SELECT * FROM chit_groups
+      WHERE status = 'ACTIVE'
+      ORDER BY total_pot_value ASC;
+    `;
+
+    const schemesData = await Promise.all(
+      groups.map(async (group) => {
+        const totalPot = Number(group.total_pot_value);
+        const totalShares = Number(group.total_shares || 20);
+        const baseMonthly = Number(group.installment_base_amount) || Math.round(totalPot / totalShares);
+        const kasiru = Math.round((totalPot * 5) / 100);
+
+        // Fetch auction for this month (if any)
+        const [auction] = await sql`
+          SELECT 
+            a.*,
+            m.name as winning_member_name,
+            m.phone as winning_member_phone,
+            ms.share_ticket_number
+          FROM auctions a
+          LEFT JOIN members m ON a.winning_member_id = m.id
+          LEFT JOIN member_shares ms ON a.winning_share_id = ms.id
+          WHERE a.chit_group_id = ${group.id} AND a.month_number = ${month}
+          LIMIT 1;
+        `;
+
+        let thalubadi = 0;
+        let netDiscount = 0;
+        let dividendPerShare = 0;
+        let calculatedDue = baseMonthly;
+
+        if (auction) {
+          thalubadi = Number(auction.bid_discount_amount);
+          netDiscount = Number(auction.net_dividend_pool);
+          dividendPerShare = Number(auction.dividend_per_share);
+          calculatedDue = Number(auction.net_installment_due);
+        }
+
+        // Fetch active shares in this group
+        const shares = await sql`
+          SELECT ms.id as share_id, ms.share_ticket_number, ms.member_id,
+                 m.name as member_name, m.phone as member_phone, m.whatsapp_phone
+          FROM member_shares ms
+          JOIN members m ON ms.member_id = m.id
+          WHERE ms.chit_group_id = ${group.id} AND ms.status = 'ACTIVE'
+          ORDER BY ms.share_ticket_number ASC;
+        `;
+
+        // Ensure installments exist for this month for all active shares
+        for (const share of shares) {
+          await sql`
+            INSERT INTO installments (
+              chit_group_id, month_number, member_id, share_id,
+              base_amount, dividend_deduction, net_due_amount, status
+            ) VALUES (
+              ${group.id}, ${month}, ${share.member_id}, ${share.share_id},
+              ${baseMonthly}, ${dividendPerShare}, ${calculatedDue}, 'PENDING'
+            )
+            ON CONFLICT (chit_group_id, month_number, share_id)
+            DO UPDATE SET
+              dividend_deduction = ${dividendPerShare},
+              net_due_amount = ${calculatedDue}
+            WHERE installments.status = 'PENDING';
+          `;
+        }
+
+        // Fetch all installments for this month with member & share details
+        const instList = await sql`
+          SELECT 
+            i.id,
+            i.chit_group_id,
+            i.month_number,
+            i.member_id,
+            i.share_id,
+            i.base_amount,
+            i.dividend_deduction,
+            i.net_due_amount,
+            i.paid_amount,
+            i.status,
+            i.last_payment_date,
+            i.notes,
+            m.name as member_name,
+            m.phone as member_phone,
+            m.whatsapp_phone,
+            ms.share_ticket_number
+          FROM installments i
+          JOIN members m ON i.member_id = m.id
+          JOIN member_shares ms ON i.share_id = ms.id
+          WHERE i.chit_group_id = ${group.id} AND i.month_number = ${month}
+          ORDER BY ms.share_ticket_number ASC;
+        `;
+
+        const totalExpected = instList.reduce((sum, i) => sum + Number(i.net_due_amount), 0);
+        const totalCollected = instList.reduce((sum, i) => sum + Number(i.paid_amount), 0);
+        const totalPending = Math.max(0, totalExpected - totalCollected);
+        const paidCount = instList.filter((i) => i.status === 'PAID').length;
+        const partialCount = instList.filter((i) => i.status === 'PARTIAL').length;
+
+        return {
+          group: {
+            id: group.id,
+            name: group.name,
+            total_pot_value: totalPot,
+            total_months: Number(group.total_months),
+            total_shares: totalShares,
+            installment_base_amount: baseMonthly,
+            start_date: group.start_date,
+          },
+          auction: auction
+            ? {
+                id: auction.id,
+                month_number: Number(auction.month_number),
+                auction_date: auction.auction_date,
+                winning_member_id: auction.winning_member_id,
+                winning_member_name: auction.winning_member_name,
+                winning_member_phone: auction.winning_member_phone,
+                share_ticket_number: auction.share_ticket_number,
+                payout_amount: Number(auction.payout_amount),
+                thalubadi,
+                kasiru,
+                dividend_per_share: dividendPerShare,
+                net_installment_due: calculatedDue,
+              }
+            : null,
+          math: {
+            baseMonthly,
+            thalubadi,
+            kasiru,
+            dividendPerShare,
+            netInstallmentDue: calculatedDue,
+          },
+          summary: {
+            totalMembers: instList.length,
+            paidCount,
+            partialCount,
+            pendingCount: instList.length - paidCount,
+            totalExpected,
+            totalCollected,
+            totalPending,
+            collectionPercentage: totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0,
+          },
+          installments: instList.map((i) => ({
+            id: i.id,
+            chit_group_id: i.chit_group_id,
+            group_name: group.name,
+            month_number: Number(i.month_number),
+            member_id: i.member_id,
+            share_id: i.share_id,
+            share_ticket_number: Number(i.share_ticket_number),
+            member_name: i.member_name,
+            member_phone: i.member_phone,
+            whatsapp_phone: i.whatsapp_phone,
+            base_amount: Number(i.base_amount),
+            dividend_deduction: Number(i.dividend_deduction),
+            net_due_amount: Number(i.net_due_amount),
+            paid_amount: Number(i.paid_amount),
+            status: i.status,
+            last_payment_date: i.last_payment_date,
+            notes: i.notes,
+          })),
+        };
+      })
+    );
+
+    // 20-month status overview for slider
+    const allAuctions = await sql`SELECT chit_group_id, month_number FROM auctions;`;
+    const monthsStatus = Array.from({ length: 20 }, (_, idx) => {
+      const m = idx + 1;
+      const count = allAuctions.filter((a) => Number(a.month_number) === m).length;
+      return {
+        month: m,
+        auctionsCount: count,
+        totalSchemes: groups.length,
+        isCompleted: count >= groups.length && groups.length > 0,
+        hasAny: count > 0,
+      };
+    });
+
+    const overallExpected = schemesData.reduce((sum, s) => sum + s.summary.totalExpected, 0);
+    const overallCollected = schemesData.reduce((sum, s) => sum + s.summary.totalCollected, 0);
+    const overallPending = Math.max(0, overallExpected - overallCollected);
+
+    res.json({
+      selectedMonth: month,
+      schemes: schemesData,
+      overallSummary: {
+        totalExpected: overallExpected,
+        totalCollected: overallCollected,
+        totalPending: overallPending,
+        collectionPercentage: overallExpected > 0 ? Math.round((overallCollected / overallExpected) * 100) : 0,
+      },
+      monthsStatus,
+    });
+  } catch (error) {
+    console.error('Error fetching monthly payments:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -35,22 +35,31 @@ export function createEnrollmentSmsUrl(params: {
   potValue: number;
   baseAmount: number;
   startDate: string;
+  ticketNumber?: number | string;
+  sendDate?: string;
 }): string {
+  const sDate = params.sendDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Chit Scheme Enrollment Confirmation
+Chit Scheme Welcome & Enrollment Confirmation
 புதிய சீட்டு பதிவு உறுதிசெய்தல்
 
+• Date / அனுப்பிய தேதி: ${sDate}
 • Scheme / திட்டம்: ${params.groupName}
-• Total Pot Value / மொத்த தொகை: ₹${params.potValue.toLocaleString('en-IN')}
+${params.ticketNumber ? `• Ticket No / டிக்கெட் எண்: #${params.ticketNumber}\n` : ''}• Total Pot Value / மொத்த தொகை: ₹${params.potValue.toLocaleString('en-IN')}
 • Duration / கால அளவு: 20 Months (20 மாதங்கள்)
-• Monthly Installment / மாதாந்திர தவணை: ₹${params.baseAmount.toLocaleString('en-IN')}
+• Base Monthly Installment / மாதாந்திர தவணை: ₹${params.baseAmount.toLocaleString('en-IN')}
 • Commencement / தொடக்க தேதி: ${params.startDate}
 
-Your passbook has been created. Monthly installment updates will be communicated directly to you.
-தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
+Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bidding & installment updates will be communicated directly to you.
+ராஜமாணிக்கம் சீட் பண்ட்-ல் இணைந்தமைக்கு நன்றி! தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
@@ -105,26 +114,43 @@ Ph: +91 98765 43210`;
 
 /**
  * 2. Monthly Installment Received & Cleared (Native SMS - Bilingual English & Tamil)
+ * Message 3: "We got the payment with thanks" with Date and Thalubadi/Kasiru/Dues breakdown
  */
 export function createPaymentClearedSmsUrl(params: {
   phone: string;
   memberName: string;
   groupName: string;
   monthNumber: number;
+  amountPaid?: number;
+  installmentDue?: number;
+  thalubadi?: number;
+  kasiru?: number;
+  remainingBalance?: number;
+  paymentMethod?: string;
+  paymentDate?: string;
 }): string {
+  const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Monthly Installment Received & Cleared
-மாதாந்திர தவணை பெறப்பட்டது
+Payment Received Confirmation / தவணை வரவு ரசீது
 
+We got your payment with thanks!
+தங்களின் தவணைத் தொகை பெறப்பட்டது!
+
+• Payment Date / செலுத்திய தேதி: ${pDate}
 • Scheme / திட்டம்: ${params.groupName}
-• Month / மாதம்: Month ${params.monthNumber}
-• Balance Remaining / மீதம்: ₹0 (Cleared ✓)
-
-Payment has been credited to your account with thanks. Thank you for your prompt clearance!
-தங்களின் தவணைத் தொகை பெறப்பட்டு கணக்கில் வரவு வைக்கப்பட்டது. சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
+• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+${params.amountPaid ? `• Amount Paid / செலுத்திய தொகை: ₹${params.amountPaid.toLocaleString('en-IN')}\n` : ''}${params.installmentDue ? `• Month Due / இந்த மாத தவணை: ₹${params.installmentDue.toLocaleString('en-IN')}\n` : ''}${params.thalubadi ? `• Month Thalubadi / தள்ளுபடி: ₹${params.thalubadi.toLocaleString('en-IN')}\n` : ''}${params.kasiru ? `• Month Kasiru / காசீரு: ₹${params.kasiru.toLocaleString('en-IN')}\n` : ''}• Balance Remaining / மீதம்: ${params.remainingBalance !== undefined && params.remainingBalance > 0 ? `₹${params.remainingBalance.toLocaleString('en-IN')} (Pending)` : '₹0 (Cleared ✓ / முழுமையாக செலுத்தப்பட்டது)'}
+${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}
+Thank you for your prompt clearance!
+சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
@@ -290,7 +316,7 @@ export function createBiddingWinnerSmsUrl(params: {
 
 /**
  * 7. Monthly Bidding Member Due Notification (Native SMS - Bilingual English & Tamil)
- * Sent to scheme members detailing this month's calculated installment (Winning Amount / 20)
+ * Message 2: "How much was the thalubadi this month the amount of kasiru how much should one pay with the date"
  */
 export function getMonthlyBiddingDueText(params: {
   memberName: string;
@@ -299,20 +325,40 @@ export function getMonthlyBiddingDueText(params: {
   winnerPayoutAmount: number;
   installmentDue: number;
   dividendSavings: number;
+  thalubadi?: number;
+  kasiru?: number;
+  baseAmount?: number;
+  noticeDate?: string;
 }): string {
+  const nDate = params.noticeDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const baseAmt = params.baseAmount || (params.installmentDue + params.dividendSavings);
+  const thalubadiAmt = params.thalubadi !== undefined ? params.thalubadi : (params.dividendSavings * 20 + Math.round(baseAmt * 20 * 0.05));
+  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.round(baseAmt * 20 * 0.05);
+
   return `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Monthly Installment Due Notice / மாதாந்திர தவணை அறிவிப்பு
+Monthly Bidding & Installment Due Notice
+மாதாந்திர ஏலம் & தவணை அறிவிப்பு
 
+• Notice Date / அறிவிப்பு தேதி: ${nDate}
 • Scheme / திட்டம்: ${params.groupName}
 • Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• Thalubadi (Discount) / தள்ளுபடி: ₹${thalubadiAmt.toLocaleString('en-IN')}
+• Kasiru (Commission) / காசீரு: ₹${kasiruAmt.toLocaleString('en-IN')}
+• Dividend Savings / உறுப்பினர் சேமிப்பு: ₹${params.dividendSavings.toLocaleString('en-IN')}
 • This Month Due / செலுத்த வேண்டிய தொகை: ₹${params.installmentDue.toLocaleString('en-IN')}
-• Dividend Savings / தள்ளுபடி சேமிப்பு: ₹${params.dividendSavings.toLocaleString('en-IN')}
-(ஏலத் தொகை: ₹${params.winnerPayoutAmount.toLocaleString('en-IN')} ÷ 20 நபர்கள் = ₹${params.installmentDue.toLocaleString('en-IN')})
 
-Kindly clear your installment on or before the due date.
-Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
+Calculation / கணக்கீடு:
+(Base ₹${baseAmt.toLocaleString('en-IN')} - Dividend ₹${params.dividendSavings.toLocaleString('en-IN')} = ₹${params.installmentDue.toLocaleString('en-IN')})
+
+In this date (${nDate}), your monthly due is ₹${params.installmentDue.toLocaleString('en-IN')}. Kindly clear your installment on or before the due date.
+Payment Modes / வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
@@ -328,6 +374,10 @@ export function createMonthlyBiddingDueSmsUrl(params: {
   winnerPayoutAmount: number;
   installmentDue: number;
   dividendSavings: number;
+  thalubadi?: number;
+  kasiru?: number;
+  baseAmount?: number;
+  noticeDate?: string;
 }): string {
   const text = getMonthlyBiddingDueText(params);
   return createSmsUrl(params.phone, text);

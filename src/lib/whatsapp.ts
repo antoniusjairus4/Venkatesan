@@ -54,34 +54,86 @@ export function createWhatsAppReceiptUrl(params: {
   phone: string;
   memberName: string;
   groupName: string;
-  ticketNumber: number;
+  ticketNumber?: number;
   monthNumber: number;
   amountPaid: number;
-  paymentMethod: string;
+  paymentMethod?: string;
   receiptNumber?: string;
   remainingBalance: number;
   status: string;
+  thalubadi?: number;
+  kasiru?: number;
+  installmentDue?: number;
+  paymentDate?: string;
 }): string {
   const phone = cleanPhone(params.phone);
+  const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
-Payment Confirmation Receipt / தவணை வரவு ரசீது
+*Payment Confirmation Receipt / தவணை வரவு ரசீது*
 
-• Scheme / திட்டம்: ${params.groupName}
-• Ticket / டிக்கெட்: #${params.ticketNumber}
-• Month / மாதம்: Month ${params.monthNumber}
-• Amount Paid / செலுத்திய தொகை: ${formatINR(params.amountPaid)}
-• Payment Mode / முறை: ${params.paymentMethod}
-${params.receiptNumber ? `• Receipt / ரசீது எண்: ${params.receiptNumber}\n` : ''}• Status / நிலை: ${params.status === 'PAID' ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
-• Date / தேதி: ${new Date().toLocaleDateString('en-IN')}
+We got your payment with thanks!
+தங்களின் தவணைத் தொகை பெறப்பட்டது!
 
-Thank you for your payment!
-தங்களின் தவணைத் தொகைக்கு மனமார்ந்த நன்றி!
+• *Payment Date / தேதி:* ${pDate}
+• *Scheme / திட்டம்:* ${params.groupName}
+${params.ticketNumber ? `• *Ticket / டிக்கெட்:* #${params.ticketNumber}\n` : ''}• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• *Amount Paid / செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
+${params.installmentDue ? `• *Month Due / இந்த மாத தவணை:* ${formatINR(params.installmentDue)}\n` : ''}${params.thalubadi ? `• *Month Thalubadi / தள்ளுபடி:* ${formatINR(params.thalubadi)}\n` : ''}${params.kasiru ? `• *Month Kasiru / காசீரு:* ${formatINR(params.kasiru)}\n` : ''}• *Status / நிலை:* ${params.status === 'PAID' || params.remainingBalance <= 0 ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
+${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
+Thank you for your prompt clearance!
+சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+*Rajamanickam Chit Fund, Salem*
+Ph: +91 98765 43210`;
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
+
+export function createWhatsAppEnrollmentUrl(params: {
+  phone: string;
+  memberName: string;
+  groupName: string;
+  potValue: number;
+  baseAmount: number;
+  startDate: string;
+  ticketNumber?: number | string;
+  sendDate?: string;
+}): string {
+  const phone = cleanPhone(params.phone);
+  const sDate = params.sendDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const text =
+`வணக்கம் / Hello ${params.memberName},
+
+*RAJAMANICKAM CHIT FUND*
+*Chit Scheme Welcome & Enrollment Confirmation*
+*புதிய சீட்டு பதிவு உறுதிசெய்தல்*
+
+• *Date / அனுப்பிய தேதி:* ${sDate}
+• *Scheme / திட்டம்:* ${params.groupName}
+${params.ticketNumber ? `• *Ticket No / டிக்கெட் எண்:* #${params.ticketNumber}\n` : ''}• *Total Pot Value / மொத்த தொகை:* ${formatINR(params.potValue)}
+• *Duration / கால அளவு:* 20 Months (20 மாதங்கள்)
+• *Base Monthly Installment / மாதாந்திர தவணை:* ${formatINR(params.baseAmount)}
+• *Commencement / தொடக்க தேதி:* ${params.startDate}
+
+Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bidding & installment updates will be communicated directly to you.
+ராஜமாணிக்கம் சீட் பண்ட்-ல் இணைந்தமைக்கு நன்றி! தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
+
+Regards / இங்ஙனம்,
+*Rajamanickam Chit Fund, Salem*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -137,21 +189,40 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
   winnerPayoutAmount: number;
   installmentDue: number;
   dividendSavings: number;
+  thalubadi?: number;
+  kasiru?: number;
+  baseAmount?: number;
+  noticeDate?: string;
 }): string {
   const phone = cleanPhone(params.phone);
+  const nDate = params.noticeDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const baseAmt = params.baseAmount || (params.installmentDue + params.dividendSavings);
+  const thalubadiAmt = params.thalubadi !== undefined ? params.thalubadi : (params.dividendSavings * 20 + Math.round(baseAmt * 20 * 0.05));
+  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.round(baseAmt * 20 * 0.05);
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
 *Monthly Installment Due Notice / மாதாந்திர தவணை அறிவிப்பு*
 
+• *Notice Date / அறிவிப்பு தேதி:* ${nDate}
 • *Scheme / திட்டம்:* ${params.groupName}
 • *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• *Thalubadi (Discount) / தள்ளுபடி:* ${formatINR(thalubadiAmt)}
+• *Kasiru (Commission) / காசீரு:* ${formatINR(kasiruAmt)}
+• *Dividend Savings / உறுப்பினர் சேமிப்பு:* ${formatINR(params.dividendSavings)}
 • *This Month Due / செலுத்த வேண்டிய தொகை:* ${formatINR(params.installmentDue)}
-• *Dividend Savings / தள்ளுபடி சேமிப்பு:* ${formatINR(params.dividendSavings)}
-_(ஏலத் தொகை: ${formatINR(params.winnerPayoutAmount)} ÷ 20 நபர்கள் = ${formatINR(params.installmentDue)})_
 
-Kindly clear your installment on or before the due date.
+_Calculation / கணக்கீடு:_
+_(Base ${formatINR(baseAmt)} - Dividend ${formatINR(params.dividendSavings)} = ${formatINR(params.installmentDue)})_
+
+In this date (${nDate}), your monthly due is ${formatINR(params.installmentDue)}. Kindly clear your installment on or before the due date.
 Payment Modes: Cash, GPay, PhonePe, Bank Transfer.
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 

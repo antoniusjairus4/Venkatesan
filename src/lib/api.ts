@@ -343,6 +343,7 @@ export interface MonthSchemeBiddingData {
     winning_share_id: string;
     payout_amount: number;
     bid_discount_amount: number;
+    organizer_commission?: number;
     dividend_per_share: number;
     net_installment_due: number;
     notes?: string;
@@ -352,6 +353,7 @@ export interface MonthSchemeBiddingData {
     share_ticket_number: number;
     is_prized: boolean;
     prized_month_number?: number | null;
+    won_in_other_month?: number | null;
     member_id: string;
     member_name: string;
     member_phone: string;
@@ -446,5 +448,97 @@ export async function restoreChitGroupActive(groupId: string) {
   }
   return res.json();
 }
+
+// ------------------------------------------------------------
+// Monthly Payments Types & API (Months 1 to 20)
+// ------------------------------------------------------------
+export interface MonthlyPaymentInstallment {
+  id: string;
+  chit_group_id: string;
+  group_name: string;
+  month_number: number;
+  member_id: string;
+  share_id: string;
+  share_ticket_number: number;
+  member_name: string;
+  member_phone: string;
+  whatsapp_phone?: string;
+  base_amount: number;
+  dividend_deduction: number;
+  net_due_amount: number;
+  paid_amount: number;
+  status: 'PENDING' | 'PARTIAL' | 'PAID' | string;
+  last_payment_date?: string;
+  notes?: string;
+}
+
+export interface MonthlyPaymentScheme {
+  group: {
+    id: string;
+    name: string;
+    total_pot_value: number;
+    total_months: number;
+    total_shares: number;
+    installment_base_amount: number;
+    start_date: string;
+  };
+  auction: {
+    id: string;
+    month_number: number;
+    auction_date: string;
+    winning_member_id: string;
+    winning_member_name: string;
+    winning_member_phone: string;
+    share_ticket_number: number;
+    payout_amount: number;
+    thalubadi: number;
+    kasiru: number;
+    dividend_per_share: number;
+    net_installment_due: number;
+  } | null;
+  math: {
+    baseMonthly: number;
+    thalubadi: number;
+    kasiru: number;
+    dividendPerShare: number;
+    netInstallmentDue: number;
+  };
+  summary: {
+    totalMembers: number;
+    paidCount: number;
+    partialCount: number;
+    pendingCount: number;
+    totalExpected: number;
+    totalCollected: number;
+    totalPending: number;
+    collectionPercentage: number;
+  };
+  installments: MonthlyPaymentInstallment[];
+}
+
+export interface MonthlyPaymentsResponse {
+  selectedMonth: number;
+  schemes: MonthlyPaymentScheme[];
+  overallSummary: {
+    totalExpected: number;
+    totalCollected: number;
+    totalPending: number;
+    collectionPercentage: number;
+  };
+  monthsStatus: Array<{
+    month: number;
+    auctionsCount: number;
+    totalSchemes: number;
+    isCompleted: boolean;
+    hasAny: boolean;
+  }>;
+}
+
+export async function fetchMonthlyPayments(month: number): Promise<MonthlyPaymentsResponse> {
+  const res = await fetch(`/api/monthly-payments/month/${month}`);
+  if (!res.ok) throw new Error('Failed to fetch monthly payments');
+  return res.json();
+}
+
 
 

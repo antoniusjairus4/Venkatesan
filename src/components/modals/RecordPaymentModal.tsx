@@ -9,9 +9,10 @@ import {
   ChevronDown,
   Check,
   User,
+  Phone,
 } from 'lucide-react';
 import { Installment, Member, recordPayment } from '@/lib/api';
-import { formatINR } from '@/lib/whatsapp';
+import { formatINR, createWhatsAppReceiptUrl } from '@/lib/whatsapp';
 import { createPaymentClearedSmsUrl } from '@/lib/sms';
 import { DueInstallmentDropdown } from './DueInstallmentDropdown';
 
@@ -218,20 +219,44 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </p>
             )}
 
-            {/* Inbuilt Mobile SMS Button */}
+            {/* Inbuilt Mobile SMS & WhatsApp Buttons (Message 3 with Date) */}
             {receiptData.phone && (
-              <div className="pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                 <a
                   href={createPaymentClearedSmsUrl({
                     phone: receiptData.phone,
                     memberName: receiptData.memberName,
                     groupName: receiptData.groupName,
                     monthNumber: receiptData.monthNumber,
+                    amountPaid: receiptData.amountPaid,
+                    remainingBalance: receiptData.remainingBalance,
+                    paymentMethod: receiptData.paymentMethod,
                   })}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-sm shadow-md shadow-forest-700/20 transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Send SMS to Member (Phone Messages App)</span>
+                  <span>Send SMS Receipt</span>
+                </a>
+
+                <a
+                  href={createWhatsAppReceiptUrl({
+                    phone: receiptData.phone,
+                    memberName: receiptData.memberName,
+                    groupName: receiptData.groupName,
+                    ticketNumber: receiptData.ticketNumber,
+                    monthNumber: receiptData.monthNumber,
+                    amountPaid: receiptData.amountPaid,
+                    paymentMethod: receiptData.paymentMethod,
+                    receiptNumber: receiptData.receiptNumber,
+                    remainingBalance: receiptData.remainingBalance,
+                    status: receiptData.status,
+                  })}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Send WhatsApp</span>
                 </a>
               </div>
             )}

@@ -34,6 +34,7 @@ import {
   createTakeoverSmsUrl,
   createSettlementSmsUrl,
 } from '@/lib/sms';
+import { createWhatsAppEnrollmentUrl } from '@/lib/whatsapp';
 import { Skeleton } from '@/components/common/Skeleton';
 import { PastChitGroupsView } from './PastChitGroupsView';
 
@@ -509,6 +510,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                               potValue: Number(selectedGroup.total_pot_value),
                               baseAmount: Number(selectedGroup.installment_base_amount),
                               startDate: new Date(selectedGroup.start_date).toLocaleDateString('en-IN'),
+                              ticketNumber: sub.ticket_numbers?.join(', '),
                             })
                       }
                       className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-forest-700 hover:bg-forest-800 text-white font-bold text-[11px] rounded-xl transition-all shadow-xs"
@@ -517,6 +519,27 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>{selectedGroup.status === 'COMPLETED' ? 'Settlement SMS' : 'SMS'}</span>
                     </a>
+
+                    {selectedGroup.status !== 'COMPLETED' && (
+                      <a
+                        href={createWhatsAppEnrollmentUrl({
+                          phone: sub.phone,
+                          memberName: sub.member_name,
+                          groupName: selectedGroup.name,
+                          potValue: Number(selectedGroup.total_pot_value),
+                          baseAmount: Number(selectedGroup.installment_base_amount),
+                          startDate: new Date(selectedGroup.start_date).toLocaleDateString('en-IN'),
+                          ticketNumber: sub.ticket_numbers?.join(', '),
+                        })}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xl transition-all shadow-xs"
+                        title="Send Welcome WhatsApp message"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
 
                     <button
                       type="button"

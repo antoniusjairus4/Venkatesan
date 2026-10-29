@@ -94,7 +94,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
       res.schemes.forEach((s) => {
         const defaultWinner =
-          s.subscribers.find((sub) => !sub.is_prized)?.member_id ||
+          s.subscribers.find((sub) => !sub.is_prized && !sub.won_in_other_month)?.member_id ||
           (s.subscribers[0] ? s.subscribers[0].member_id : '');
 
         // Default suggestion: 95% of pot or default discount
@@ -416,12 +416,15 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               isSubmitting: false,
             };
 
-            // Real-time live math calculation
+            // Real-time live math calculation (Tamil Nadu standard chit fund math)
             const inputPayout = parseFloat(currentInputs.payoutAmount) || 0;
             const liveWinnerPayout = isFinalized ? Number(scheme.auction?.payout_amount) : inputPayout;
-            const liveTasiru = Math.max(0, pot - liveWinnerPayout);
-            const livePerMemberDue = Math.round(liveWinnerPayout / totalMembers);
-            const liveDividendPerMember = Math.round(liveTasiru / totalMembers);
+            const baseMonthly = Number(scheme.group.installment_base_amount) || Math.round(pot / totalMembers);
+            const liveThalubadi = Math.max(0, pot - liveWinnerPayout);
+            const liveKasiru = Math.round((pot * 5) / 100);
+            const liveNetDiscount = Math.max(0, liveThalubadi - liveKasiru);
+            const liveDividendPerMember = Math.floor(liveNetDiscount / totalMembers);
+            const livePerMemberDue = Math.max(0, baseMonthly - liveDividendPerMember);
 
             // Preset suggestions based on pot
             const presets =
@@ -493,12 +496,27 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"
                         >
                           <option value="">-- Choose Winning Member --</option>
-                          {scheme.subscribers.map((sub) => (
-                            <option key={sub.share_id} value={sub.member_id}>
-                              #{sub.share_ticket_number} - {sub.member_name} ({sub.member_phone})
-                              {sub.is_prized ? ` [Prized M${sub.prized_month_number || ''}]` : ''}
-                            </option>
-                          ))}
+                          {scheme.subscribers.map((sub) => {
+                            const wonMonth =
+                              sub.won_in_other_month ||
+                              (sub.is_prized && sub.prized_month_number !== selectedMonth
+                                ? sub.prized_month_number
+                                : null);
+                            const isAlreadyWon = Boolean(wonMonth);
+
+                            return (
+                              <option
+                                key={sub.share_id}
+                                value={sub.member_id}
+                                disabled={isAlreadyWon}
+                              >
+                                #{sub.share_ticket_number} - {sub.member_name} ({sub.member_phone})
+                                {isAlreadyWon
+                                  ? ` (Already Won in Month ${wonMonth} - Cannot Take Again)`
+                                  : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 
@@ -531,7 +549,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                                 },
                               }))
                             }
-                            placeholder="e.g. 95000 or 80000"
+                            placeholder="e.g. 75000 or 95000"
                             className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"
                           />
                         </div>
@@ -564,20 +582,25 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </div>
                       </div>
 
-                      {/* 3. Automated Real-Time Math Logic Display */}
+                      {/* 3. Automated Real-Time Math Logic Display (Standard Chit Fund Math) */}
                       <div className="p-3.5 rounded-xl bg-forest-50/70 border border-forest-100 space-y-2.5">
-                        <div className="flex items-center gap-1.5 text-forest-800 font-extrabold text-xs">
-                          <Calculator className="w-3.5 h-3.5 text-forest-700" />
-                          <span>Automated Chit Fund Math Logic</span>
+                        <div className="flex items-center justify-between text-forest-800 font-extrabold text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <Calculator className="w-3.5 h-3.5 text-forest-700" />
+                            <span>Automated Chit Fund Math Logic</span>
+                          </div>
+                          <span className="text-[10px] text-forest-700 font-bold bg-white/90 px-2 py-0.5 rounded-md border border-forest-100">
+                            Base: {formatINR(baseMonthly)}
+                          </span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="bg-white p-2 rounded-lg border border-forest-100">
                             <span className="text-[10px] text-slate-400 block font-bold uppercase">
-                              Tasiru (தள்ளுபடி)
+                              Thalubadi (தள்ளுபடி)
                             </span>
                             <span className="font-extrabold text-amber-700 text-sm">
-                              {formatINR(liveTasiru)}
+                              {formatINR(liveThalubadi)}
                             </span>
                             <span className="text-[9px] text-slate-400 block">
                               ({formatINR(pot)} - {formatINR(liveWinnerPayout)})
@@ -586,22 +609,30 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
                           <div className="bg-white p-2 rounded-lg border border-forest-100">
                             <span className="text-[10px] text-slate-400 block font-bold uppercase">
-                              Per Member Due
+                              Kasiru (காசீரு 5%)
                             </span>
-                            <span className="font-black text-forest-900 text-sm">
-                              {formatINR(livePerMemberDue)}
+                            <span className="font-extrabold text-slate-700 text-sm">
+                              {formatINR(liveKasiru)}
                             </span>
-                            <span className="text-[9px] text-forest-600 font-semibold block">
-                              ({formatINR(liveWinnerPayout)} ÷ 20 Members)
+                            <span className="text-[9px] text-slate-400 block">
+                              (5% of Pot Pool)
                             </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 px-1 pt-1 border-t border-forest-100/60">
-                          <span>Dividend Savings per Member:</span>
-                          <span className="text-emerald-700 font-extrabold">
-                            +{formatINR(liveDividendPerMember)}
-                          </span>
+                        <div className="bg-white p-2.5 rounded-lg border border-forest-100 space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                            <span>Net Discount ({formatINR(liveThalubadi)} - {formatINR(liveKasiru)}):</span>
+                            <span className="text-forest-800">{formatINR(liveNetDiscount)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-700">
+                            <span>Dividend Savings per Member (÷ 20):</span>
+                            <span>+{formatINR(liveDividendPerMember)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs font-black text-slate-900 pt-1 border-t border-slate-100">
+                            <span>Per Member Due ({formatINR(baseMonthly)} - {formatINR(liveDividendPerMember)}):</span>
+                            <span className="text-forest-900 text-sm font-black">{formatINR(livePerMemberDue)}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -666,12 +697,12 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-[10px] text-slate-400 block uppercase font-bold">
-                            Tasiru (தள்ளுபடி)
+                            Thalubadi (தள்ளுபடி)
                           </span>
                           <strong className="text-amber-700 font-extrabold text-sm block">
                             {formatINR(Number(scheme.auction?.bid_discount_amount))}
                           </strong>
-                          <span className="text-[9px] text-slate-400">Total Discount</span>
+                          <span className="text-[9px] text-slate-400">Kasiru (5%): {formatINR(liveKasiru)}</span>
                         </div>
 
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
@@ -682,7 +713,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                             {formatINR(Number(scheme.auction?.net_installment_due))}
                           </strong>
                           <span className="text-[9px] text-forest-700 font-semibold">
-                            (Winning ÷ 20 Members)
+                            (Base {formatINR(baseMonthly)} - Div {formatINR(Number(scheme.auction?.dividend_per_share))})
                           </span>
                         </div>
 
@@ -694,7 +725,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                             +{formatINR(Number(scheme.auction?.dividend_per_share))}
                           </strong>
                           <span className="text-[9px] text-emerald-600 font-semibold">
-                            (Tasiru ÷ 20 Members)
+                            (Net Disc ÷ 20 Members)
                           </span>
                         </div>
                       </div>
@@ -907,7 +938,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Calculated Due: <strong>{formatINR(membersModalScheme.auction.net_installment_due)}</strong> per member
-                  (₹{membersModalScheme.auction.payout_amount.toLocaleString('en-IN')} ÷ 20 Members)
+                  (Base {formatINR(Number(membersModalScheme.group.installment_base_amount))} - Dividend {formatINR(membersModalScheme.auction.dividend_per_share)}) &bull; Thalubadi: {formatINR(membersModalScheme.auction.bid_discount_amount)}
                 </p>
               </div>
               <button
@@ -933,6 +964,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                       winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
                       installmentDue: membersModalScheme.auction!.net_installment_due,
                       dividendSavings: membersModalScheme.auction!.dividend_per_share,
+                      thalubadi: Number(membersModalScheme.auction!.bid_discount_amount),
+                      kasiru: Math.round(Number(membersModalScheme.group.total_pot_value) * 0.05),
+                      baseAmount: Number(membersModalScheme.group.installment_base_amount),
                     }),
                     'roster-copy'
                   )
@@ -958,6 +992,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               {membersModalScheme.subscribers.map((sub) => {
                 const dueAmount = membersModalScheme.auction!.net_installment_due;
                 const savings = membersModalScheme.auction!.dividend_per_share;
+                const thalubadi = Number(membersModalScheme.auction!.bid_discount_amount);
+                const kasiru = Math.round(Number(membersModalScheme.group.total_pot_value) * 0.05);
+                const baseAmount = Number(membersModalScheme.group.installment_base_amount);
 
                 const smsUrl = createMonthlyBiddingDueSmsUrl({
                   phone: sub.member_phone,
@@ -967,6 +1004,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
                   installmentDue: dueAmount,
                   dividendSavings: savings,
+                  thalubadi,
+                  kasiru,
+                  baseAmount,
                 });
 
                 const waUrl = createMonthlyBiddingDueWhatsAppUrl({
@@ -977,6 +1017,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
                   installmentDue: dueAmount,
                   dividendSavings: savings,
+                  thalubadi,
+                  kasiru,
+                  baseAmount,
                 });
 
                 return (

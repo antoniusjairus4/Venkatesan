@@ -116,18 +116,18 @@ async function verifyWinnerPayout() {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
 
   // Login
-  console.log('   Logging in as Admin (Venkatesan)...');
+  console.log('   Setting admin session and navigating...');
+  await page.goto('http://127.0.0.1:5173', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    const sessionData = JSON.stringify({
+      authenticated: true,
+      user: 'Venkatesan',
+      timestamp: new Date().toISOString(),
+    });
+    localStorage.setItem('rajamanickam_admin_auth', sessionData);
+    sessionStorage.setItem('rajamanickam_admin_auth', sessionData);
+  });
   await page.goto('http://127.0.0.1:5173', { waitUntil: 'networkidle0' });
-  await page.waitForSelector('input[type="password"]');
-  await page.$eval('input[type="text"]', (el) => (el.value = ''));
-  await page.type('input[type="text"]', 'venkatesan');
-  await page.type('input[type="password"]', 'MahiVenkat@1722');
-  await page.click('button[type="submit"]');
-
-  await page.waitForFunction(
-    () => !document.querySelector('form') && document.body.innerText.includes('Rajamanickam'),
-    { timeout: 15000 }
-  );
   await delay(1500);
 
   // Navigate to Monthly Bidding

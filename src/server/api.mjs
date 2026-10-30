@@ -73,45 +73,36 @@ apiRouter.get('/analytics', async (req, res) => {
     const totalDue = collected + pending;
     const percentage = totalDue > 0 ? Math.round((collected / totalDue) * 100) : 0;
 
-    // 2. Cash Inflow vs Outflow by Month (Dual Bar Chart)
-    const monthsData = [];
-    for (let m = 1; m <= 6; m++) {
-      const inflowQuery = isSpecificGroup
-        ? sql`
-            SELECT COALESCE(SUM(pt.amount_paid), 0)::numeric as total
-            FROM payment_transactions pt
-            JOIN installments i ON pt.installment_id = i.id
-            WHERE i.month_number = ${m} AND i.chit_group_id = ${chit_group_id};
-          `
-        : sql`
-            SELECT COALESCE(SUM(pt.amount_paid), 0)::numeric as total
-            FROM payment_transactions pt
-            JOIN installments i ON pt.installment_id = i.id
-            WHERE i.month_number = ${m};
-          `;
+    // 2. Cash Inflow vs Outflow by Month (Dual Bar Chart) - Optimized parallel aggregation
+    const inflowQuery = isSpecificGroup
+      ? sql`
+          SELECT i.month_number, COALESCE(SUM(pt.amount_paid), 0)::numeric as total
+          FROM payment_transactions pt
+          JOIN installments i ON pt.installment_id = i.id
+          WHERE i.month_number <= 6 AND i.chit_group_id = ${chit_group_id}
+          GROUP BY i.month_number;
+        `
+      : sql`
+          SELECT i.month_number, COALESCE(SUM(pt.amount_paid), 0)::numeric as total
+          FROM payment_transactions pt
+          JOIN installments i ON pt.installment_id = i.id
+          WHERE i.month_number <= 6
+          GROUP BY i.month_number;
+        `;
 
-      const outflowQuery = isSpecificGroup
-        ? sql`
-            SELECT COALESCE(SUM(payout_amount), 0)::numeric as total
-            FROM auctions
-            WHERE month_number = ${m} AND chit_group_id = ${chit_group_id};
-          `
-        : sql`
-            SELECT COALESCE(SUM(payout_amount), 0)::numeric as total
-            FROM auctions
-            WHERE month_number = ${m};
-          `;
-
-      const [[inflowRes], [outflowRes]] = await Promise.all([inflowQuery, outflowQuery]);
-      const inflow = Number(inflowRes?.total || 0);
-      const outflow = Number(outflowRes?.total || 0);
-
-      monthsData.push({
-        month: `M${m}`,
-        inflow,
-        outflow,
-      });
-    }
+    const outflowQuery = isSpecificGroup
+      ? sql`
+          SELECT month_number, COALESCE(SUM(payout_amount), 0)::numeric as total
+          FROM auctions
+          WHERE month_number <= 6 AND chit_group_id = ${chit_group_id}
+          GROUP BY month_number;
+        `
+      : sql`
+          SELECT month_number, COALESCE(SUM(payout_amount), 0)::numeric as total
+          FROM auctions
+          WHERE month_number <= 6
+          GROUP BY month_number;
+        `;
 
     // 3. Defaulter Aging & Risk Buckets (Chart 6)
     const defaultersQuery = isSpecificGroup
@@ -146,7 +137,23 @@ apiRouter.get('/analytics', async (req, res) => {
           ORDER BY unpaid_count DESC, pending_amount DESC;
         `;
 
-    const defaulterRows = await defaultersQuery;
+    const [inflows, outflows, defaulterRows] = await Promise.all([
+      inflowQuery,
+      outflowQuery,
+      defaultersQuery,
+    ]);
+
+    const inflowMap = new Map(inflows.map((r) => [Number(r.month_number), Number(r.total)]));
+    const outflowMap = new Map(outflows.map((r) => [Number(r.month_number), Number(r.total)]));
+
+    const monthsData = [];
+    for (let m = 1; m <= 6; m++) {
+      monthsData.push({
+        month: `M${m}`,
+        inflow: inflowMap.get(m) || 0,
+        outflow: outflowMap.get(m) || 0,
+      });
+    }
 
     let bucket1Count = 0;
     let bucket1Amount = 0;
@@ -1457,26 +1464,8 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
           ORDER BY ms.share_ticket_number ASC;
         `;
 
-        // Ensure installments exist for this month for all active shares
-        for (const share of shares) {
-          await sql`
-            INSERT INTO installments (
-              chit_group_id, month_number, member_id, share_id,
-              base_amount, dividend_deduction, net_due_amount, status
-            ) VALUES (
-              ${group.id}, ${month}, ${share.member_id}, ${share.share_id},
-              ${baseMonthly}, ${dividendPerShare}, ${calculatedDue}, 'PENDING'
-            )
-            ON CONFLICT (chit_group_id, month_number, share_id)
-            DO UPDATE SET
-              dividend_deduction = ${dividendPerShare},
-              net_due_amount = ${calculatedDue}
-            WHERE installments.status = 'PENDING';
-          `;
-        }
-
         // Fetch all installments for this month with member & share details
-        const instList = await sql`
+        let instList = await sql`
           SELECT 
             i.id,
             i.chit_group_id,
@@ -1500,6 +1489,49 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
           WHERE i.chit_group_id = ${group.id} AND i.month_number = ${month}
           ORDER BY ms.share_ticket_number ASC;
         `;
+
+        // If any shares don't have installments yet, insert them
+        if (instList.length < shares.length) {
+          const existingShareIds = new Set(instList.map((i) => i.share_id));
+          const missingShares = shares.filter((s) => !existingShareIds.has(s.share_id));
+          for (const share of missingShares) {
+            await sql`
+              INSERT INTO installments (
+                chit_group_id, month_number, member_id, share_id,
+                base_amount, dividend_deduction, net_due_amount, status
+              ) VALUES (
+                ${group.id}, ${month}, ${share.member_id}, ${share.share_id},
+                ${baseMonthly}, ${dividendPerShare}, ${calculatedDue}, 'PENDING'
+              )
+              ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
+            `;
+          }
+
+          instList = await sql`
+            SELECT 
+              i.id,
+              i.chit_group_id,
+              i.month_number,
+              i.member_id,
+              i.share_id,
+              i.base_amount,
+              i.dividend_deduction,
+              i.net_due_amount,
+              i.paid_amount,
+              i.status,
+              i.last_payment_date,
+              i.notes,
+              m.name as member_name,
+              m.phone as member_phone,
+              m.whatsapp_phone,
+              ms.share_ticket_number
+            FROM installments i
+            JOIN members m ON i.member_id = m.id
+            JOIN member_shares ms ON i.share_id = ms.id
+            WHERE i.chit_group_id = ${group.id} AND i.month_number = ${month}
+            ORDER BY ms.share_ticket_number ASC;
+          `;
+        }
 
         const totalExpected = instList.reduce((sum, i) => sum + Number(i.net_due_amount), 0);
         const totalCollected = instList.reduce((sum, i) => sum + Number(i.paid_amount), 0);

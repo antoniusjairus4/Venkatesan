@@ -126,6 +126,27 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
 );
 
 -- ------------------------------------------------------------
+-- 6b. WINNER PRIZE PAYOUT INSTALLMENTS TABLE
+-- Records bulk or split installments paid to the monthly auction winner
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS winner_payout_installments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auction_id UUID NOT NULL REFERENCES auctions(id) ON DELETE CASCADE,
+    chit_group_id UUID NOT NULL REFERENCES chit_groups(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+    installment_number INT NOT NULL,                  -- 1, 2, 3, ... n
+    amount_paid NUMERIC(12, 2) NOT NULL,              -- amount paid in this installment
+    payment_date DATE NOT NULL,
+    payment_method VARCHAR(30) DEFAULT 'BANK_TRANSFER',-- 'CASH', 'GPAY', 'PHONEPE', 'BANK_TRANSFER', 'CHEQUE'
+    receipt_reference VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_winner_payouts_auction ON winner_payout_installments(auction_id);
+CREATE INDEX IF NOT EXISTS idx_winner_payouts_member ON winner_payout_installments(member_id);
+
+-- ------------------------------------------------------------
 -- 7. CHIT TRANSFERS / TAKEOVERS (RULE 3: ONE-TIME LUMP-SUM SETTLEMENT)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS chit_transfers (

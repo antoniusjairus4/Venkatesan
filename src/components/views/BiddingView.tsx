@@ -20,6 +20,8 @@ import {
   Layers,
   Users,
   Archive,
+  CreditCard,
+  Trophy,
 } from 'lucide-react';
 import {
   fetchMonthBiddingData,
@@ -29,6 +31,7 @@ import {
   MonthBiddingResponse,
   MonthSchemeBiddingData,
   ChitGroup,
+  WinnerPayoutSummary,
 } from '@/lib/api';
 import {
   formatINR,
@@ -41,6 +44,7 @@ import {
   createBiddingWinnerWhatsAppUrl,
   createMonthlyBiddingDueWhatsAppUrl,
 } from '@/lib/whatsapp';
+import { WinnerPayoutModal } from '../modals/WinnerPayoutModal';
 
 interface BiddingViewProps {
   onGoToChits?: () => void;
@@ -72,11 +76,36 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
   // Modals state
   const [winnerModalScheme, setWinnerModalScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [membersModalScheme, setMembersModalScheme] = useState<MonthSchemeBiddingData | null>(null);
+  const [payoutModalScheme, setPayoutModalScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [deleteConfirmScheme, setDeleteConfirmScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [moveConfirmGroup, setMoveConfirmGroup] = useState<ChitGroup | null>(null);
   const [isMovingCompleted, setIsMovingCompleted] = useState<boolean>(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  const handlePayoutUpdated = (updatedSummary: WinnerPayoutSummary) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const updatedSchemes = prev.schemes.map((s) => {
+        if (s.auction && s.auction.id === payoutModalScheme?.auction?.id) {
+          const updated = {
+            ...s,
+            auction: {
+              ...s.auction,
+              payout_summary: updatedSummary,
+            },
+          };
+          setPayoutModalScheme(updated);
+          return updated;
+        }
+        return s;
+      });
+      return {
+        ...prev,
+        schemes: updatedSchemes,
+      };
+    });
+  };
 
   // Load bidding data whenever selectedMonth changes
   const loadMonthData = async (month: number) => {
@@ -730,6 +759,58 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </div>
                       </div>
 
+                      {/* Winner Payout Disbursement Status Box */}
+                      <div className="p-3.5 rounded-xl bg-gradient-to-br from-amber-50/70 via-orange-50/30 to-amber-50/40 border border-amber-200/90 space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-extrabold text-amber-950 flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Prize Payout Status:</span>
+                          </span>
+                          {scheme.auction?.payout_summary?.payout_status === 'PAID' ? (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                              <span>Fully Paid ({scheme.auction.payout_summary.installments_count} {scheme.auction.payout_summary.installments_count === 1 ? 'Payment' : 'Inst'})</span>
+                            </span>
+                          ) : scheme.auction?.payout_summary?.payout_status === 'PARTIAL' ? (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-blue-700" />
+                              <span>Partially Paid ({formatINR(scheme.auction.payout_summary.total_disbursed)})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-700" />
+                              <span>Pending Disbursal</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 px-0.5">
+                          <span>
+                            Disbursed: <strong className="text-forest-900 font-extrabold">{formatINR(scheme.auction?.payout_summary?.total_disbursed || 0)}</strong>
+                          </span>
+                          <span>
+                            Balance: <strong className={(scheme.auction?.payout_summary?.balance_remaining ?? Number(scheme.auction?.payout_amount)) > 0 ? 'text-amber-800 font-extrabold' : 'text-emerald-700 font-extrabold'}>
+                              {formatINR(scheme.auction?.payout_summary?.balance_remaining !== undefined ? scheme.auction.payout_summary.balance_remaining : Number(scheme.auction?.payout_amount))}
+                            </strong>
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setPayoutModalScheme(scheme)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 active:from-amber-800 active:to-amber-900 text-white font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>
+                            {scheme.auction?.payout_summary?.payout_status === 'PAID'
+                              ? 'Manage / View Payout Receipts (Settled ✓)'
+                              : scheme.auction?.payout_summary?.payout_status === 'PARTIAL'
+                              ? `Pay Next Installment (Balance: ${formatINR(scheme.auction.payout_summary.balance_remaining)})`
+                              : `Pay Winner Prize (${formatINR(Number(scheme.auction?.payout_amount))})`}
+                          </span>
+                        </button>
+                      </div>
+
                       {/* Action 1: Winner ONLY Notification */}
                       <div className="space-y-2 pt-1">
                         <button
@@ -737,7 +818,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>Send Winner SMS (Winner Only)</span>
+                          <span>Send Winner Announcement SMS</span>
                         </button>
 
                         {/* Action 2: Members Dues Notification */}
@@ -1203,6 +1284,19 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ------------------------------------------------------------ */}
+      {/* 8. Winner Prize Payout & Installments Modal (Bulk or 2, 3, N Installments) */}
+      {/* ------------------------------------------------------------ */}
+      {payoutModalScheme && (
+        <WinnerPayoutModal
+          isOpen={Boolean(payoutModalScheme)}
+          onClose={() => setPayoutModalScheme(null)}
+          scheme={payoutModalScheme}
+          selectedMonth={selectedMonth}
+          onPayoutUpdated={handlePayoutUpdated}
+        />
       )}
     </div>
   );

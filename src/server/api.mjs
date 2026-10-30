@@ -1065,10 +1065,53 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
       WHERE a.month_number = ${month};
     `;
 
+    // 2b. Bulk fetch all winner payout installments for these month auctions
+    const auctionIds = monthAuctions.map((a) => a.id);
+    let allMonthPayouts = [];
+    if (auctionIds.length > 0) {
+      allMonthPayouts = await sql`
+        SELECT * FROM winner_payout_installments
+        WHERE auction_id = ANY(${auctionIds})
+        ORDER BY installment_number ASC;
+      `;
+    }
+
     // 3. For each group, get enrolled subscribers and payment statuses
     const schemesData = await Promise.all(
       groups.map(async (group) => {
         const auction = monthAuctions.find((a) => a.chit_group_id === group.id) || null;
+
+        let payoutSummary = null;
+        if (auction) {
+          const auctionPayouts = allMonthPayouts.filter((p) => p.auction_id === auction.id);
+          const totalDisbursed = auctionPayouts.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+          const totalPayout = Number(auction.payout_amount);
+          const balanceRemaining = Math.max(0, totalPayout - totalDisbursed);
+          let payoutStatus = 'PENDING';
+          if (totalDisbursed >= totalPayout && totalPayout > 0) {
+            payoutStatus = 'PAID';
+          } else if (totalDisbursed > 0) {
+            payoutStatus = 'PARTIAL';
+          }
+
+          payoutSummary = {
+            total_payout_amount: totalPayout,
+            total_disbursed: totalDisbursed,
+            balance_remaining: balanceRemaining,
+            payout_status: payoutStatus,
+            installments_count: auctionPayouts.length,
+            installments: auctionPayouts.map((p) => ({
+              id: p.id,
+              installment_number: Number(p.installment_number),
+              amount_paid: Number(p.amount_paid),
+              payment_date: p.payment_date,
+              payment_method: p.payment_method,
+              receipt_reference: p.receipt_reference,
+              notes: p.notes,
+              created_at: p.created_at,
+            })),
+          };
+        }
 
         const subscribers = await sql`
           SELECT 
@@ -1127,6 +1170,7 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
                 bid_discount_amount: Number(auction.bid_discount_amount),
                 dividend_per_share: Number(auction.dividend_per_share),
                 net_installment_due: Number(auction.net_installment_due),
+                payout_summary: payoutSummary,
                 notes: auction.notes,
               }
             : null,
@@ -1399,6 +1443,188 @@ apiRouter.delete('/bidding/group/:chit_group_id/month/:month_number', async (req
     res.json({ success: true, message: 'Bidding record deleted and installments reset.' });
   } catch (error) {
     console.error('Error deleting bidding record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------------------------------------
+// WINNER PRIZE PAYOUT & INSTALLMENTS (BULK OR 2, 3, N INSTALLMENTS)
+// Allows the client/agent (Mr. Venkatesan) to disburse the prize
+// either in bulk or in multiple custom installments with real-time tracking
+// ------------------------------------------------------------
+apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
+  try {
+    const { auctionId } = req.params;
+    const { amount_paid, payment_date, payment_method, receipt_reference, notes } = req.body;
+
+    const amount = Number(amount_paid);
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Payout installment amount must be greater than zero.' });
+    }
+
+    const [auction] = await sql`
+      SELECT a.*, g.name as group_name, m.name as member_name, m.phone as member_phone
+      FROM auctions a
+      JOIN chit_groups g ON a.chit_group_id = g.id
+      JOIN members m ON a.winning_member_id = m.id
+      WHERE a.id = ${auctionId};
+    `;
+
+    if (!auction) {
+      return res.status(404).json({ error: 'Auction record not found.' });
+    }
+
+    const [maxInst] = await sql`
+      SELECT COALESCE(MAX(installment_number), 0)::int as max_num
+      FROM winner_payout_installments
+      WHERE auction_id = ${auctionId};
+    `;
+    const nextInstNumber = (maxInst?.max_num || 0) + 1;
+    const pDate = payment_date || new Date().toISOString().split('T')[0];
+    const pMethod = payment_method || 'BANK_TRANSFER';
+    const ref = receipt_reference || `PAY-${auction.group_name.replace(/\s+/g, '')}-M${auction.month_number}-I${nextInstNumber}`;
+
+    const [newPayout] = await sql`
+      INSERT INTO winner_payout_installments (
+        auction_id, chit_group_id, member_id, installment_number,
+        amount_paid, payment_date, payment_method, receipt_reference, notes
+      ) VALUES (
+        ${auction.id}, ${auction.chit_group_id}, ${auction.winning_member_id},
+        ${nextInstNumber}, ${amount}, ${pDate}, ${pMethod}, ${ref}, ${notes || null}
+      )
+      RETURNING *;
+    `;
+
+    // Recalculate totals
+    const allPayouts = await sql`
+      SELECT * FROM winner_payout_installments
+      WHERE auction_id = ${auctionId}
+      ORDER BY installment_number ASC;
+    `;
+
+    const totalDisbursed = allPayouts.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+    const totalPayout = Number(auction.payout_amount);
+    const balanceRemaining = Math.max(0, totalPayout - totalDisbursed);
+    let newStatus = 'PENDING';
+    if (totalDisbursed >= totalPayout) {
+      newStatus = 'PAID';
+    } else if (totalDisbursed > 0) {
+      newStatus = 'PARTIAL';
+    }
+
+    await sql`
+      UPDATE auctions
+      SET payout_status = ${newStatus}, payout_date = ${pDate}, payout_reference = ${ref}
+      WHERE id = ${auctionId};
+    `;
+
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description, recorded_by)
+      VALUES (
+        'WINNER_PAYOUT_RECORDED', ${newPayout.id}, ${auction.chit_group_id},
+        ${`Winner prize payout installment #${nextInstNumber} of ₹${amount.toLocaleString('en-IN')} paid to ${auction.member_name} (${auction.group_name} Month ${auction.month_number}).`},
+        'Venkatesan'
+      );
+    `;
+
+    res.status(201).json({
+      success: true,
+      message: `Winner payout installment #${nextInstNumber} of ₹${amount.toLocaleString('en-IN')} recorded successfully.`,
+      installment: {
+        id: newPayout.id,
+        installment_number: Number(newPayout.installment_number),
+        amount_paid: Number(newPayout.amount_paid),
+        payment_date: newPayout.payment_date,
+        payment_method: newPayout.payment_method,
+        receipt_reference: newPayout.receipt_reference,
+        notes: newPayout.notes,
+        created_at: newPayout.created_at,
+      },
+      payout_summary: {
+        total_payout_amount: totalPayout,
+        total_disbursed: totalDisbursed,
+        balance_remaining: balanceRemaining,
+        payout_status: newStatus,
+        installments_count: allPayouts.length,
+        installments: allPayouts.map((p) => ({
+          id: p.id,
+          installment_number: Number(p.installment_number),
+          amount_paid: Number(p.amount_paid),
+          payment_date: p.payment_date,
+          payment_method: p.payment_method,
+          receipt_reference: p.receipt_reference,
+          notes: p.notes,
+          created_at: p.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error recording winner payout installment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.delete('/bidding/payouts/:payoutId', async (req, res) => {
+  try {
+    const { payoutId } = req.params;
+
+    const [payout] = await sql`
+      SELECT * FROM winner_payout_installments WHERE id = ${payoutId};
+    `;
+    if (!payout) {
+      return res.status(404).json({ error: 'Payout installment not found.' });
+    }
+
+    const auctionId = payout.auction_id;
+
+    await sql`DELETE FROM winner_payout_installments WHERE id = ${payoutId};`;
+
+    // Recalculate totals
+    const [auction] = await sql`SELECT * FROM auctions WHERE id = ${auctionId};`;
+    const remainingPayouts = await sql`
+      SELECT * FROM winner_payout_installments WHERE auction_id = ${auctionId} ORDER BY installment_number ASC;
+    `;
+
+    const totalDisbursed = remainingPayouts.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+    const totalPayout = Number(auction.payout_amount);
+    const balanceRemaining = Math.max(0, totalPayout - totalDisbursed);
+    let newStatus = 'PENDING';
+    if (totalDisbursed >= totalPayout) {
+      newStatus = 'PAID';
+    } else if (totalDisbursed > 0) {
+      newStatus = 'PARTIAL';
+    }
+
+    await sql`
+      UPDATE auctions
+      SET payout_status = ${newStatus},
+          payout_date = ${remainingPayouts.length > 0 ? remainingPayouts[remainingPayouts.length - 1].payment_date : null}
+      WHERE id = ${auctionId};
+    `;
+
+    res.json({
+      success: true,
+      message: 'Payout installment deleted successfully.',
+      payout_summary: {
+        total_payout_amount: totalPayout,
+        total_disbursed: totalDisbursed,
+        balance_remaining: balanceRemaining,
+        payout_status: newStatus,
+        installments_count: remainingPayouts.length,
+        installments: remainingPayouts.map((p) => ({
+          id: p.id,
+          installment_number: Number(p.installment_number),
+          amount_paid: Number(p.amount_paid),
+          payment_date: p.payment_date,
+          payment_method: p.payment_method,
+          receipt_reference: p.receipt_reference,
+          notes: p.notes,
+          created_at: p.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error deleting payout installment:', error);
     res.status(500).json({ error: error.message });
   }
 });

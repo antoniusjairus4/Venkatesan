@@ -232,3 +232,57 @@ Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Winner Prize Payout & Installment Receipt via WhatsApp
+ * Sent directly to the winning member when the agent disburses bulk or installment payouts
+ */
+export function createWinnerPayoutInstallmentWhatsAppUrl(params: {
+  phone: string;
+  winnerName: string;
+  groupName: string;
+  monthNumber: number;
+  installmentNumber: number;
+  installmentAmount: number;
+  totalPayoutAmount: number;
+  totalDisbursedSoFar: number;
+  remainingBalance: number;
+  paymentDate?: string;
+  paymentMethod?: string;
+  receiptReference?: string;
+  notes?: string;
+}): string {
+  const phone = cleanPhone(params.phone);
+  const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const text =
+`வணக்கம் / Hello ${params.winnerName},
+
+🎉 *RAJAMANICKAM CHIT FUND*
+*Prize Money Disbursement Receipt / ஏல வெற்றித் தொகை வழங்கல் ரசீது*
+
+• *Scheme / திட்டம்:* ${params.groupName}
+• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+• *Installment / தவணை:* Prize Payout Installment #${params.installmentNumber} (பரிசு தவணை #${params.installmentNumber})
+• *Amount Paid Now / இப்போது வழங்கிய தொகை:* ${formatINR(params.installmentAmount)}
+• *Payment Date / வழங்கிய தேதி:* ${pDate}
+${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• *Ref / UTR No:* ${params.receiptReference}\n` : ''}
+*Prize Payout Summary / பரிசுத் தொகை சுருக்கம்:*
+• *Total Prize / மொத்த வெற்றித் தொகை:* ${formatINR(params.totalPayoutAmount)}
+• *Total Paid So Far / இதுவரை வழங்கியது:* ${formatINR(params.totalDisbursedSoFar)}
+• *Remaining Balance / மீதம் வழங்க வேண்டியது:* ${params.remainingBalance <= 0 ? '₹0 (Fully Settled ✓ / கணக்கு முடிக்கப்பட்டது)' : `${formatINR(params.remainingBalance)} (Pending)`}
+
+${params.remainingBalance <= 0 
+  ? 'Your winning prize has been fully disbursed with thanks!\nதங்களின் வெற்றித் தொகை முழுமையாக வழங்கப்பட்டு கணக்கு முடிக்கப்பட்டது!'
+  : 'The remaining prize balance will be disbursed in upcoming installment(s).\nமீதமுள்ள தொகை அடுத்த தவணையில் தங்களுக்கு வழங்கப்படும்.'}
+
+Regards / இங்ஙனம்,
+*Rajamanickam Chit Fund, Salem*
+Ph: +91 98765 43210`;
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}

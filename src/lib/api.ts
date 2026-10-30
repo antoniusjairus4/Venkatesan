@@ -328,6 +328,26 @@ export async function fetchPastChitSnapshot(id: string): Promise<PastChitSnapsho
 // ------------------------------------------------------------
 // Monthly Bidding & Calculations Interfaces & API Functions
 // ------------------------------------------------------------
+export interface WinnerPayoutInstallment {
+  id: string;
+  installment_number: number;
+  amount_paid: number;
+  payment_date: string;
+  payment_method: string;
+  receipt_reference?: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface WinnerPayoutSummary {
+  total_payout_amount: number;
+  total_disbursed: number;
+  balance_remaining: number;
+  payout_status: 'PENDING' | 'PARTIAL' | 'PAID';
+  installments_count: number;
+  installments: WinnerPayoutInstallment[];
+}
+
 export interface MonthSchemeBiddingData {
   group: ChitGroup;
   auction: {
@@ -346,6 +366,7 @@ export interface MonthSchemeBiddingData {
     organizer_commission?: number;
     dividend_per_share: number;
     net_installment_due: number;
+    payout_summary?: WinnerPayoutSummary | null;
     notes?: string;
   } | null;
   subscribers: Array<{
@@ -410,6 +431,48 @@ export async function deleteBidding(chitGroupId: string, monthNumber: number) {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || 'Failed to delete bidding record');
+  }
+  return res.json();
+}
+
+export async function recordWinnerPayout(
+  auctionId: string,
+  data: {
+    amount_paid: number;
+    payment_date?: string;
+    payment_method?: string;
+    receipt_reference?: string;
+    notes?: string;
+  }
+): Promise<{
+  success: boolean;
+  message: string;
+  installment: WinnerPayoutInstallment;
+  payout_summary: WinnerPayoutSummary;
+}> {
+  const res = await fetch(`/api/bidding/auction/${auctionId}/payouts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to record winner payout' }));
+    throw new Error(err.error || 'Failed to record winner payout');
+  }
+  return res.json();
+}
+
+export async function deleteWinnerPayout(payoutId: string): Promise<{
+  success: boolean;
+  message: string;
+  payout_summary: WinnerPayoutSummary;
+}> {
+  const res = await fetch(`/api/bidding/payouts/${payoutId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete payout installment' }));
+    throw new Error(err.error || 'Failed to delete payout installment');
   }
   return res.json();
 }

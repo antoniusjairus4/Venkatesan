@@ -128,6 +128,7 @@ export function createPaymentClearedSmsUrl(params: {
   remainingBalance?: number;
   paymentMethod?: string;
   paymentDate?: string;
+  expectedPaymentDate?: string;
 }): string {
   const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -148,7 +149,7 @@ We got your payment with thanks!
 • Scheme / திட்டம்: ${params.groupName}
 • Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
 ${params.amountPaid ? `• Amount Paid / செலுத்திய தொகை: ₹${params.amountPaid.toLocaleString('en-IN')}\n` : ''}${params.installmentDue ? `• Month Due / இந்த மாத தவணை: ₹${params.installmentDue.toLocaleString('en-IN')}\n` : ''}${params.thalubadi ? `• Month Thalubadi / தள்ளுபடி: ₹${params.thalubadi.toLocaleString('en-IN')}\n` : ''}${params.kasiru ? `• Month Kasiru / காசீரு: ₹${params.kasiru.toLocaleString('en-IN')}\n` : ''}• Balance Remaining / மீதம்: ${params.remainingBalance !== undefined && params.remainingBalance > 0 ? `₹${params.remainingBalance.toLocaleString('en-IN')} (Pending)` : '₹0 (Cleared ✓ / முழுமையாக செலுத்தப்பட்டது)'}
-${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}
+${params.remainingBalance !== undefined && params.remainingBalance > 0 && params.expectedPaymentDate ? `• Promised Next Payment Date / அடுத்த தவணை தேதி: ${params.expectedPaymentDate}\n` : ''}${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}
 Thank you for your prompt clearance!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
@@ -397,6 +398,7 @@ export function getWinnerPayoutInstallmentText(params: {
   totalDisbursedSoFar: number;
   remainingBalance: number;
   paymentDate?: string;
+  nextExpectedPayoutDate?: string;
   paymentMethod?: string;
   receiptReference?: string;
   notes?: string;
@@ -423,7 +425,7 @@ Prize Payout Summary / பரிசுத் தொகை சுருக்க�
 • Total Prize / மொத்த வெற்றித் தொகை: ₹${params.totalPayoutAmount.toLocaleString('en-IN')}
 • Total Paid So Far / இதுவரை வழங்கியது: ₹${params.totalDisbursedSoFar.toLocaleString('en-IN')}
 • Remaining Balance / மீதம் வழங்க வேண்டியது: ${params.remainingBalance <= 0 ? '₹0 (Fully Settled ✓ / கணக்கு முடிக்கப்பட்டது)' : `₹${params.remainingBalance.toLocaleString('en-IN')} (Pending)`}
-
+${params.remainingBalance > 0 && params.nextExpectedPayoutDate ? `• Next Installment Due Date / அடுத்த தவணை தேதி: ${params.nextExpectedPayoutDate}\n` : ''}
 ${params.remainingBalance <= 0 
   ? 'Your winning prize has been fully disbursed with thanks!\nதங்களின் வெற்றித் தொகை முழுமையாக வழங்கப்பட்டு கணக்கு முடிக்கப்பட்டது!'
   : 'The remaining prize balance will be disbursed in upcoming installment(s).\nமீதமுள்ள தொகை அடுத்த தவணையில் தங்களுக்கு வழங்கப்படும்.'}
@@ -444,6 +446,7 @@ export function createWinnerPayoutInstallmentSmsUrl(params: {
   totalDisbursedSoFar: number;
   remainingBalance: number;
   paymentDate?: string;
+  nextExpectedPayoutDate?: string;
   paymentMethod?: string;
   receiptReference?: string;
   notes?: string;

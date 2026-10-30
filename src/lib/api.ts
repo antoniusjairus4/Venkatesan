@@ -222,6 +222,8 @@ export async function recordPayment(data: {
   payment_method: string;
   receipt_number?: string;
   notes?: string;
+  payment_date?: string;
+  expected_payment_date?: string;
 }) {
   const res = await fetch('/api/record-payment', {
     method: 'POST',
@@ -344,6 +346,7 @@ export interface WinnerPayoutSummary {
   total_disbursed: number;
   balance_remaining: number;
   payout_status: 'PENDING' | 'PARTIAL' | 'PAID';
+  next_expected_payout_date?: string | null;
   installments_count: number;
   installments: WinnerPayoutInstallment[];
 }
@@ -443,6 +446,7 @@ export async function recordWinnerPayout(
     payment_method?: string;
     receipt_reference?: string;
     notes?: string;
+    next_expected_payout_date?: string;
   }
 ): Promise<{
   success: boolean;
@@ -515,6 +519,17 @@ export async function restoreChitGroupActive(groupId: string) {
 // ------------------------------------------------------------
 // Monthly Payments Types & API (Months 1 to 20)
 // ------------------------------------------------------------
+export interface PaymentTransactionRecord {
+  id: string;
+  installment_id?: string;
+  amount_paid: number;
+  payment_date: string;
+  payment_method: string;
+  receipt_number?: string;
+  notes?: string;
+  created_at?: string;
+}
+
 export interface MonthlyPaymentInstallment {
   id: string;
   chit_group_id: string;
@@ -532,6 +547,8 @@ export interface MonthlyPaymentInstallment {
   paid_amount: number;
   status: 'PENDING' | 'PARTIAL' | 'PAID' | string;
   last_payment_date?: string;
+  expected_payment_date?: string;
+  transactions?: PaymentTransactionRecord[];
   notes?: string;
 }
 

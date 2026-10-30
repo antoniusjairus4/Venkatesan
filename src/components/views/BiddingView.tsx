@@ -784,7 +784,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-slate-600 px-0.5">
+                        <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-600 px-0.5 gap-1">
                           <span>
                             Disbursed: <strong className="text-forest-900 font-extrabold">{formatINR(scheme.auction?.payout_summary?.total_disbursed || 0)}</strong>
                           </span>
@@ -794,6 +794,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                             </strong>
                           </span>
                         </div>
+
+                        {scheme.auction?.payout_summary?.next_expected_payout_date && (scheme.auction.payout_summary.balance_remaining ?? 0) > 0 && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-700 shrink-0" />
+                            <span>Next Payout Scheduled: {new Date(scheme.auction.payout_summary.next_expected_payout_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          </div>
+                        )}
 
                         <button
                           type="button"

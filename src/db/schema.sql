@@ -77,9 +77,10 @@ CREATE TABLE IF NOT EXISTS auctions (
     dividend_per_share NUMERIC(12, 2) NOT NULL,        -- net_dividend_pool / total_shares
     net_installment_due NUMERIC(12, 2) NOT NULL,       -- base_amount - dividend_per_share
     payout_amount NUMERIC(12, 2) NOT NULL,             -- Payout to winner (pot_value - bid_discount)
-    payout_status VARCHAR(20) DEFAULT 'PENDING',       -- 'PENDING', 'PAID'
+    payout_status VARCHAR(20) DEFAULT 'PENDING',       -- 'PENDING', 'PARTIAL', 'PAID'
     payout_date DATE,
     payout_reference VARCHAR(100),
+    next_expected_payout_date DATE,                    -- Date when remaining/next installment will be paid
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_group_month_auction UNIQUE (chit_group_id, month_number)
@@ -100,6 +101,7 @@ CREATE TABLE IF NOT EXISTS installments (
     paid_amount NUMERIC(12, 2) DEFAULT 0.00,           -- Total collected so far
     status VARCHAR(20) DEFAULT 'PENDING',              -- 'PENDING', 'PARTIAL', 'PAID' (RULE 1)
     last_payment_date DATE,
+    expected_payment_date DATE,                        -- Date when subscriber promised to pay remaining amount
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

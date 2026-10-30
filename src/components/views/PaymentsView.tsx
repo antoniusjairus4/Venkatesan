@@ -497,6 +497,14 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             });
 
             // Message 3 URLs (Payment Confirmation Receipt with in-built date)
+            const paymentDateStr = inst.last_payment_date
+              ? new Date(inst.last_payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+              : undefined;
+
+            const expectedDateStr = inst.expected_payment_date
+              ? new Date(inst.expected_payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+              : undefined;
+
             const receiptSmsUrl = createPaymentClearedSmsUrl({
               phone: inst.member_phone,
               memberName: inst.member_name,
@@ -507,7 +515,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
               thalubadi,
               kasiru,
               remainingBalance: remaining,
-              paymentDate: inst.last_payment_date ? new Date(inst.last_payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : undefined,
+              paymentDate: paymentDateStr,
+              expectedPaymentDate: expectedDateStr,
             });
 
             const receiptWaUrl = createWhatsAppReceiptUrl({
@@ -519,6 +528,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
               amountPaid: paid,
               remainingBalance: remaining,
               status: inst.status,
+              paymentDate: paymentDateStr,
+              expectedPaymentDate: expectedDateStr,
             });
 
             return (
@@ -568,10 +579,40 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       )}
                       {inst.last_payment_date && (
                         <span className="text-[11px] text-slate-400">
-                          Paid on: {new Date(inst.last_payment_date).toLocaleDateString('en-IN')}
+                          Last Paid: {new Date(inst.last_payment_date).toLocaleDateString('en-IN')}
                         </span>
                       )}
                     </div>
+
+                    {/* Breakdown of split installment dates */}
+                    {inst.transactions && inst.transactions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Instalments ({inst.transactions.length}):
+                        </span>
+                        {inst.transactions.map((tx, idx) => (
+                          <span
+                            key={tx.id || idx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200"
+                          >
+                            <span className="text-forest-800 font-extrabold">#{idx + 1}: {formatINR(tx.amount_paid)}</span>
+                            <span className="text-slate-400">&bull;</span>
+                            <span className="text-slate-600">
+                              {new Date(tx.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                            <span className="text-[10px] text-slate-400">({tx.payment_method})</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Expected promised date */}
+                    {!isPaid && inst.expected_payment_date && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-200/80 w-fit">
+                        <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Promised Payment Date (அடுத்த தவணை): {new Date(inst.expected_payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -600,8 +641,42 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                         <span>WhatsApp Receipt</span>
                       </a>
                     </>
+                  ) : isPartial ? (
+                    /* If Partial: Offer In-Place Collect + Receipt + Due Notice */
+                    <>
+                      <a
+                        href={receiptWaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
+                        title="Send WhatsApp Receipt for installment received so far"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>WhatsApp Receipt</span>
+                      </a>
+
+                      <a
+                        href={dueWaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors cursor-pointer"
+                        title="Send Due WhatsApp notice for remaining balance"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-amber-700" />
+                        <span>WhatsApp Due</span>
+                      </a>
+
+                      <button
+                        onClick={() => onRecordPayment(inst as any)}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-forest-700 hover:bg-forest-800 text-white shadow-xs transition-colors cursor-pointer"
+                        title={`Record payment of ${formatINR(remaining)} for ${inst.member_name}`}
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Collect {formatINR(remaining)}</span>
+                      </button>
+                    </>
                   ) : (
-                    /* If Pending or Partial: Offer Due Reminders (Message 2) + In-Place Collect */
+                    /* If Pending: Offer Due Reminders (Message 2) + In-Place Collect */
                     <>
                       <a
                         href={dueSmsUrl}

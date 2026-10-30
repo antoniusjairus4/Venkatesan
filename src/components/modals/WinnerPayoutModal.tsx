@@ -52,6 +52,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
   // Form states
   const [amountPaid, setAmountPaid] = useState<string>(String(balanceRemaining > 0 ? balanceRemaining : ''));
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [nextExpectedPayoutDate, setNextExpectedPayoutDate] = useState<string>(payoutSummary?.next_expected_payout_date || '');
   const [paymentMethod, setPaymentMethod] = useState<string>('BANK_TRANSFER');
   const [receiptReference, setReceiptReference] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -92,6 +93,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
         payment_method: paymentMethod,
         receipt_reference: receiptReference.trim() || undefined,
         notes: notes.trim() || undefined,
+        next_expected_payout_date: nextExpectedPayoutDate.trim() || undefined,
       });
 
       onPayoutUpdated(res.payout_summary);
@@ -100,6 +102,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
       // Reset form
       const newRemaining = res.payout_summary.balance_remaining;
       setAmountPaid(newRemaining > 0 ? String(newRemaining) : '');
+      setNextExpectedPayoutDate(res.payout_summary.next_expected_payout_date || '');
       setReceiptReference('');
       setNotes('');
     } catch (err: unknown) {
@@ -139,6 +142,8 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const nextPayoutDateStr = payoutSummary?.next_expected_payout_date || nextExpectedPayoutDate;
+
   // Build message parameters for active installment
   const messageParams = activeInstallment
     ? {
@@ -152,6 +157,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
         totalDisbursedSoFar: totalDisbursed,
         remainingBalance: balanceRemaining,
         paymentDate: activeInstallment.payment_date,
+        nextExpectedPayoutDate: nextPayoutDateStr ? new Date(nextPayoutDateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : undefined,
         paymentMethod: activeInstallment.payment_method,
         receiptReference: activeInstallment.receipt_reference,
         notes: activeInstallment.notes,
@@ -285,6 +291,13 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
                 <span>{formatINR(totalPayout)}</span>
               </div>
             </div>
+
+            {payoutSummary?.next_expected_payout_date && balanceRemaining > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100/70 px-3 py-1.5 rounded-xl border border-amber-300/80">
+                <Calendar className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span>Next Payout Scheduled (அடுத்த தவணை தேதி): {new Date(payoutSummary.next_expected_payout_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              </div>
+            )}
           </div>
 
           {/* ------------------------------------------------------------ */}
@@ -411,6 +424,22 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"
                   />
                 </div>
+
+                {/* Next Expected Payout Date (Optional, when balance remaining > 0) */}
+                {(parseFloat(amountPaid) || 0) < balanceRemaining && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Next Installment Due Date (அடுத்த தவணை தேதி)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={nextExpectedPayoutDate}
+                      onChange={(e) => setNextExpectedPayoutDate(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-700"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Notes */}

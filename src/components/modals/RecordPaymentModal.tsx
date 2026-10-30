@@ -10,6 +10,7 @@ import {
   Check,
   User,
   Phone,
+  Calendar,
 } from 'lucide-react';
 import { Installment, Member, recordPayment } from '@/lib/api';
 import { formatINR, createWhatsAppReceiptUrl } from '@/lib/whatsapp';
@@ -35,6 +36,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   const [installmentId, setInstallmentId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
+  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [expectedPaymentDate, setExpectedPaymentDate] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [receiptNumber, setReceiptNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -54,6 +57,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     receiptNumber?: string;
     remainingBalance: number;
     status: string;
+    paymentDate: string;
+    expectedPaymentDate?: string;
   } | null>(null);
 
   // Synchronize initial selection on modal open or prop change
@@ -62,6 +67,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
     setShowMemberDropdown(false);
     setError(null);
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setExpectedPaymentDate('');
 
     if (targetMember) {
       // Find all installments belonging to this specific target member
@@ -137,6 +144,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         payment_method: paymentMethod,
         receipt_number: receiptNumber.trim() || undefined,
         notes: notes.trim() || undefined,
+        payment_date: paymentDate,
+        expected_payment_date: expectedPaymentDate.trim() || undefined,
       });
 
       if (currentInst) {
@@ -151,6 +160,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           receiptNumber: receiptNumber || undefined,
           remainingBalance: res.remaining_balance,
           status: res.rule_status,
+          paymentDate,
+          expectedPaymentDate: expectedPaymentDate.trim() || undefined,
         });
       }
       onSuccess();
@@ -208,15 +219,26 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <p className="text-xs text-slate-600 mt-1 font-medium">
                 {receiptData.memberName} &bull; {receiptData.groupName} (Ticket #{receiptData.ticketNumber}) &bull; Month {receiptData.monthNumber}
               </p>
-              <div className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                Status: {receiptData.status}
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Status: {receiptData.status}
+                </span>
+                <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  Paid on: {receiptData.paymentDate}
+                </span>
               </div>
             </div>
 
             {receiptData.remainingBalance > 0 && (
-              <p className="text-xs text-amber-700 font-semibold bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                Rule 1 Notice: Remaining balance of {formatINR(receiptData.remainingBalance)} is still pending for this month.
-              </p>
+              <div className="text-xs text-amber-800 font-semibold bg-amber-50 p-2.5 rounded-xl border border-amber-200 space-y-1 text-left">
+                <p>Rule 1 Notice: Remaining balance of {formatINR(receiptData.remainingBalance)} is still pending for this month.</p>
+                {receiptData.expectedPaymentDate && (
+                  <p className="text-[11px] text-amber-900 font-bold flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>Promised Next Payment Date (அடுத்த தவணை): {receiptData.expectedPaymentDate}</span>
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Inbuilt Mobile SMS & WhatsApp Buttons (Message 3 with Date) */}
@@ -231,6 +253,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     amountPaid: receiptData.amountPaid,
                     remainingBalance: receiptData.remainingBalance,
                     paymentMethod: receiptData.paymentMethod,
+                    paymentDate: receiptData.paymentDate,
+                    expectedPaymentDate: receiptData.expectedPaymentDate,
                   })}
                   className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
@@ -250,6 +274,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     receiptNumber: receiptData.receiptNumber,
                     remainingBalance: receiptData.remainingBalance,
                     status: receiptData.status,
+                    paymentDate: receiptData.paymentDate,
+                    expectedPaymentDate: receiptData.expectedPaymentDate,
                   })}
                   target="_blank"
                   rel="noreferrer"
@@ -500,6 +526,39 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   {formatINR(nextRemaining)} ({nextStatus})
                 </span>
               </div>
+            </div>
+
+            {/* Payment Date & Optional Promised Next Payment Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Payment Date (செலுத்திய தேதி) *</span>
+                </label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+                />
+              </div>
+
+              {nextRemaining > 0 && (
+                <div>
+                  <label className="block text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Next Due (அடுத்த தவணை தேதி)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={expectedPaymentDate}
+                    onChange={(e) => setExpectedPaymentDate(e.target.value)}
+                    placeholder="Promised date"
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-700"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Payment Method Selector */}

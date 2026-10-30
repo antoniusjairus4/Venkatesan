@@ -65,6 +65,7 @@ export function createWhatsAppReceiptUrl(params: {
   kasiru?: number;
   installmentDue?: number;
   paymentDate?: string;
+  expectedPaymentDate?: string;
 }): string {
   const phone = cleanPhone(params.phone);
   const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
@@ -87,7 +88,7 @@ We got your payment with thanks!
 ${params.ticketNumber ? `• *Ticket / டிக்கெட்:* #${params.ticketNumber}\n` : ''}• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
 • *Amount Paid / செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
 ${params.installmentDue ? `• *Month Due / இந்த மாத தவணை:* ${formatINR(params.installmentDue)}\n` : ''}${params.thalubadi ? `• *Month Thalubadi / தள்ளுபடி:* ${formatINR(params.thalubadi)}\n` : ''}${params.kasiru ? `• *Month Kasiru / காசீரு:* ${formatINR(params.kasiru)}\n` : ''}• *Status / நிலை:* ${params.status === 'PAID' || params.remainingBalance <= 0 ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
-${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
+${params.remainingBalance > 0 && params.expectedPaymentDate ? `• *Promised Next Payment Date / அடுத்த தவணை தேதி:* ${params.expectedPaymentDate}\n` : ''}${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
 Thank you for your prompt clearance!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
@@ -248,6 +249,7 @@ export function createWinnerPayoutInstallmentWhatsAppUrl(params: {
   totalDisbursedSoFar: number;
   remainingBalance: number;
   paymentDate?: string;
+  nextExpectedPayoutDate?: string;
   paymentMethod?: string;
   receiptReference?: string;
   notes?: string;
@@ -275,7 +277,7 @@ ${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMet
 • *Total Prize / மொத்த வெற்றித் தொகை:* ${formatINR(params.totalPayoutAmount)}
 • *Total Paid So Far / இதுவரை வழங்கியது:* ${formatINR(params.totalDisbursedSoFar)}
 • *Remaining Balance / மீதம் வழங்க வேண்டியது:* ${params.remainingBalance <= 0 ? '₹0 (Fully Settled ✓ / கணக்கு முடிக்கப்பட்டது)' : `${formatINR(params.remainingBalance)} (Pending)`}
-
+${params.remainingBalance > 0 && params.nextExpectedPayoutDate ? `• *Next Installment Due Date / அடுத்த தவணை தேதி:* ${params.nextExpectedPayoutDate}\n` : ''}
 ${params.remainingBalance <= 0 
   ? 'Your winning prize has been fully disbursed with thanks!\nதங்களின் வெற்றித் தொகை முழுமையாக வழங்கப்பட்டு கணக்கு முடிக்கப்பட்டது!'
   : 'The remaining prize balance will be disbursed in upcoming installment(s).\nமீதமுள்ள தொகை அடுத்த தவணையில் தங்களுக்கு வழங்கப்படும்.'}

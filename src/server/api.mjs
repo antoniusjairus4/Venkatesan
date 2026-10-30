@@ -763,7 +763,7 @@ apiRouter.get('/installments', async (req, res) => {
 
 apiRouter.post('/record-payment', async (req, res) => {
   try {
-    const { installment_id, amount_paid, payment_method, receipt_number, notes } = req.body;
+    const { installment_id, amount_paid, payment_method, receipt_number, notes, payment_date, expected_payment_date } = req.body;
     const amount = Number(amount_paid);
 
     if (amount <= 0) {
@@ -783,6 +783,8 @@ apiRouter.post('/record-payment', async (req, res) => {
 
     // Rule 1: Only 'PAID' if full amount is cleared. Otherwise 'PARTIAL'.
     const newStatus = remaining <= 0 ? 'PAID' : 'PARTIAL';
+    const payDate = payment_date || new Date().toISOString().split('T')[0];
+    const nextExpected = remaining > 0 ? (expected_payment_date || null) : null;
 
     // Update installment
     const [updatedInst] = await sql`
@@ -790,7 +792,8 @@ apiRouter.post('/record-payment', async (req, res) => {
       SET 
         paid_amount = ${newPaidTotal},
         status = ${newStatus},
-        last_payment_date = CURRENT_DATE,
+        last_payment_date = ${payDate},
+        expected_payment_date = ${nextExpected},
         updated_at = NOW()
       WHERE id = ${installment_id}
       RETURNING *;
@@ -803,7 +806,7 @@ apiRouter.post('/record-payment', async (req, res) => {
         amount_paid, payment_date, payment_method, receipt_number, notes
       ) VALUES (
         ${installment_id}, ${inst.chit_group_id}, ${inst.member_id}, ${inst.share_id},
-        ${amount}, CURRENT_DATE, ${payment_method || 'CASH'}, ${receipt_number || null}, ${notes || null}
+        ${amount}, ${payDate}, ${payment_method || 'CASH'}, ${receipt_number || null}, ${notes || null}
       )
       RETURNING *;
     `;
@@ -813,7 +816,7 @@ apiRouter.post('/record-payment', async (req, res) => {
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
       VALUES (
         'PAYMENT_RECORDED', ${tx.id}, ${inst.chit_group_id},
-        ${`Recorded payment of ₹${amount.toLocaleString('en-IN')} via ${payment_method || 'CASH'} (Status: ${newStatus}, Remaining: ₹${Math.max(0, remaining)})`}
+        ${`Recorded payment of ₹${amount.toLocaleString('en-IN')} on ${payDate} via ${payment_method || 'CASH'} (Status: ${newStatus}, Remaining: ₹${Math.max(0, remaining)}${nextExpected ? `, Promised Next Due: ${nextExpected}` : ''})`}
       );
     `;
 
@@ -1099,6 +1102,7 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
             total_disbursed: totalDisbursed,
             balance_remaining: balanceRemaining,
             payout_status: payoutStatus,
+            next_expected_payout_date: auction.next_expected_payout_date,
             installments_count: auctionPayouts.length,
             installments: auctionPayouts.map((p) => ({
               id: p.id,
@@ -1455,7 +1459,7 @@ apiRouter.delete('/bidding/group/:chit_group_id/month/:month_number', async (req
 apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
   try {
     const { auctionId } = req.params;
-    const { amount_paid, payment_date, payment_method, receipt_reference, notes } = req.body;
+    const { amount_paid, payment_date, payment_method, receipt_reference, notes, next_expected_payout_date } = req.body;
 
     const amount = Number(amount_paid);
     if (!amount || amount <= 0) {
@@ -1512,9 +1516,15 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
       newStatus = 'PARTIAL';
     }
 
+    const nextExpected = balanceRemaining > 0 ? (next_expected_payout_date || null) : null;
+
     await sql`
       UPDATE auctions
-      SET payout_status = ${newStatus}, payout_date = ${pDate}, payout_reference = ${ref}
+      SET 
+        payout_status = ${newStatus},
+        payout_date = ${pDate},
+        payout_reference = ${ref},
+        next_expected_payout_date = ${nextExpected}
       WHERE id = ${auctionId};
     `;
 
@@ -1545,6 +1555,7 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
         total_disbursed: totalDisbursed,
         balance_remaining: balanceRemaining,
         payout_status: newStatus,
+        next_expected_payout_date: nextExpected,
         installments_count: allPayouts.length,
         installments: allPayouts.map((p) => ({
           id: p.id,
@@ -1595,10 +1606,13 @@ apiRouter.delete('/bidding/payouts/:payoutId', async (req, res) => {
       newStatus = 'PARTIAL';
     }
 
+    const nextExpected = balanceRemaining > 0 ? auction.next_expected_payout_date : null;
+
     await sql`
       UPDATE auctions
       SET payout_status = ${newStatus},
-          payout_date = ${remainingPayouts.length > 0 ? remainingPayouts[remainingPayouts.length - 1].payment_date : null}
+          payout_date = ${remainingPayouts.length > 0 ? remainingPayouts[remainingPayouts.length - 1].payment_date : null},
+          next_expected_payout_date = ${nextExpected}
       WHERE id = ${auctionId};
     `;
 
@@ -1610,6 +1624,7 @@ apiRouter.delete('/bidding/payouts/:payoutId', async (req, res) => {
         total_disbursed: totalDisbursed,
         balance_remaining: balanceRemaining,
         payout_status: newStatus,
+        next_expected_payout_date: nextExpected,
         installments_count: remainingPayouts.length,
         installments: remainingPayouts.map((p) => ({
           id: p.id,
@@ -1704,6 +1719,7 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
             i.paid_amount,
             i.status,
             i.last_payment_date,
+            i.expected_payment_date,
             i.notes,
             m.name as member_name,
             m.phone as member_phone,
@@ -1746,6 +1762,7 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
               i.paid_amount,
               i.status,
               i.last_payment_date,
+              i.expected_payment_date,
               i.notes,
               m.name as member_name,
               m.phone as member_phone,
@@ -1757,6 +1774,31 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
             WHERE i.chit_group_id = ${group.id} AND i.month_number = ${month}
             ORDER BY ms.share_ticket_number ASC;
           `;
+        }
+
+        const instIds = instList.map((i) => i.id);
+        const transactionsByInst = {};
+        if (instIds.length > 0) {
+          const txs = await sql`
+            SELECT id, installment_id, amount_paid, payment_date, payment_method, receipt_number, notes, created_at
+            FROM payment_transactions
+            WHERE installment_id = ANY(${instIds})
+            ORDER BY payment_date ASC, created_at ASC;
+          `;
+          for (const tx of txs) {
+            if (!transactionsByInst[tx.installment_id]) {
+              transactionsByInst[tx.installment_id] = [];
+            }
+            transactionsByInst[tx.installment_id].push({
+              id: tx.id,
+              amount_paid: Number(tx.amount_paid),
+              payment_date: tx.payment_date,
+              payment_method: tx.payment_method,
+              receipt_number: tx.receipt_number,
+              notes: tx.notes,
+              created_at: tx.created_at,
+            });
+          }
         }
 
         const totalExpected = instList.reduce((sum, i) => sum + Number(i.net_due_amount), 0);
@@ -1825,6 +1867,8 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
             paid_amount: Number(i.paid_amount),
             status: i.status,
             last_payment_date: i.last_payment_date,
+            expected_payment_date: i.expected_payment_date,
+            transactions: transactionsByInst[i.id] || [],
             notes: i.notes,
           })),
         };

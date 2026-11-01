@@ -60,6 +60,7 @@ export function createWhatsAppReceiptUrl(params: {
   paymentMethod?: string;
   receiptNumber?: string;
   remainingBalance: number;
+  previouslyPaid?: number;
   status: string;
   thalubadi?: number;
   kasiru?: number;
@@ -74,22 +75,46 @@ export function createWhatsAppReceiptUrl(params: {
     year: 'numeric',
   });
 
+  const prevPaid = params.previouslyPaid || 0;
+  const isAfterPartial = prevPaid > 0;
+  const dueAmt = params.installmentDue || (prevPaid + params.amountPaid + Math.max(0, params.remainingBalance));
+  const isSettled = params.remainingBalance <= 0;
+
+  let breakdownLines = '';
+  if (isAfterPartial) {
+    // Case 3 (Diary Page 5): After partial payment completion / subsequent payment
+    breakdownLines =
+`• *முன்னர் செலுத்திய தொகை:* ${formatINR(prevPaid)}
+• *தற்போது செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
+• *மீதி செலுத்த வேண்டிய தொகை:* ${isSettled ? 'NIL' : formatINR(params.remainingBalance)}
+${isSettled ? '• *கணக்கு முடிக்கப்பட்டது. ✓*' : (params.expectedPaymentDate ? `• *அடுத்த தவணை தேதி:* ${params.expectedPaymentDate}` : '')}`;
+  } else if (isSettled) {
+    // Case 1 (Diary Page 4): Full payment at once
+    breakdownLines =
+`• *தற்போது செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
+• *மீதி செலுத்த வேண்டிய தொகை:* NIL
+• *கணக்கு முடிக்கப்பட்டது. ✓*`;
+  } else {
+    // Case 2 (Diary Page 5): First partial payment
+    breakdownLines =
+`• *தற்போது செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
+• *மீதி செலுத்த வேண்டிய தொகை:* ${formatINR(params.remainingBalance)}
+${params.expectedPaymentDate ? `• *அடுத்த தவணை தேதி:* ${params.expectedPaymentDate}` : ''}`;
+  }
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
 *Payment Confirmation Receipt / தவணை வரவு ரசீது*
 
-We got your payment with thanks!
-தங்களின் தவணைத் தொகை பெறப்பட்டது!
-
-• *Payment Date / தேதி:* ${pDate}
-• *Scheme / திட்டம்:* ${params.groupName}
-${params.ticketNumber ? `• *Member No / உறுப்பினர் எண்:* #${params.ticketNumber}\n` : ''}• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• *Amount Paid / செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
-${params.installmentDue ? `• *Month Due / இந்த மாத தவணை:* ${formatINR(params.installmentDue)}\n` : ''}${params.thalubadi ? `• *Month Thalubadi / தள்ளுபடி:* ${formatINR(params.thalubadi)}\n` : ''}${params.kasiru ? `• *Month Kasiru / காசீரு:* ${formatINR(params.kasiru)}\n` : ''}• *Status / நிலை:* ${params.status === 'PAID' || params.remainingBalance <= 0 ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
-${params.remainingBalance > 0 && params.expectedPaymentDate ? `• *Promised Next Payment Date / அடுத்த தவணை தேதி:* ${params.expectedPaymentDate}\n` : ''}${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
-Thank you for your prompt clearance!
+• *Scheme / சீட்டு:* ${params.groupName}
+• *Chit Date / சீட்டு தேதி:* ${pDate}
+• *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்
+• *சீட்டுக்கு கட்ட வேண்டிய தொகை:* ${formatINR(dueAmt)}
+${breakdownLines}
+${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
+Thank you for your prompt payment!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
@@ -146,7 +171,8 @@ export function createWhatsAppMessageUrl(phone: string, text: string): string {
 }
 
 /**
- * Bidding Winner Notification via WhatsApp (Sent strictly to winner)
+ * Bidding Winner Notification via WhatsApp (Sent strictly to the person who took the chit)
+ * Matches Diary Page 1 & 2: சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு
  */
 export function createBiddingWinnerWhatsAppUrl(params: {
   phone: string;
@@ -155,22 +181,28 @@ export function createBiddingWinnerWhatsAppUrl(params: {
   monthNumber: number;
   payoutAmount: number;
   tasiruAmount: number;
+  chitDate?: string;
 }): string {
   const phone = cleanPhone(params.phone);
+  const cDate = params.chitDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   const text =
 `வணக்கம் / Hello ${params.winnerName},
 
-🎉 *வாழ்த்துக்கள்! RAJAMANICKAM CHIT FUND*
-*Bidding Winner Notification / ஏல வெற்றி அறிவிப்பு*
+*RAJAMANICKAM CHIT FUND*
+*Chit Winner Notice / சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு*
 
-• *Scheme / திட்டம்:* ${params.groupName}
-• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• *Prize Payout / வெற்றித் தொகை:* ${formatINR(params.payoutAmount)}
-• *Tasiru (Discount) / தள்ளுபடி:* ${formatINR(params.tasiruAmount)}
+• *Scheme / சீட்டு:* ${params.groupName}
+• *Chit Date / சீட்டு தேதி:* ${cDate}
+• *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்
+• *Chit Prize / சீட்டு எடுத்த தொகை:* ${formatINR(params.payoutAmount)}
+• *Discount / தள்ளுபடி:* ${formatINR(params.tasiruAmount)}
 
-Congratulations! You are the prized winning bidder for Month ${params.monthNumber} in ${params.groupName}.
-Your prize payout will be disbursed to your account shortly.
-தங்களின் ஏல வெற்றித் தொகை விரைவில் அலுவலகம் மூலம் வழங்கப்படும்.
+வாழ்த்துக்கள்! தங்களின் சீட்டு எடுத்த தொகை விரைவில் தங்களுக்கு வழங்கப்படும்.
 
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Salem*
@@ -180,7 +212,8 @@ Ph: +91 98765 43210`;
 }
 
 /**
- * Monthly Member Due Notification via WhatsApp (Winning Amount / 20)
+ * Monthly Member Due Notification via WhatsApp (Sent to all 20 members)
+ * Matches Diary Page 2: Chit-க்கு கட்டவேண்டிய Amount பற்றி 20 member ku MSG
  */
 export function createMonthlyBiddingDueWhatsAppUrl(params: {
   phone: string;
@@ -210,21 +243,15 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
 `வணக்கம் / Hello ${params.memberName},
 
 *RAJAMANICKAM CHIT FUND*
-*Monthly Installment Due Notice / மாதாந்திர தவணை அறிவிப்பு*
+*Monthly Due Notice / மாதாந்திர தவணை அறிவிப்பு*
 
-• *Notice Date / அறிவிப்பு தேதி:* ${nDate}
-• *Scheme / திட்டம்:* ${params.groupName}
-• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• *Thalubadi (Discount) / தள்ளுபடி:* ${formatINR(thalubadiAmt)}
-• *Kasiru (Commission) / காசீரு:* ${formatINR(kasiruAmt)}
-• *Dividend Savings / உறுப்பினர் சேமிப்பு:* ${formatINR(params.dividendSavings)}
-• *This Month Due / செலுத்த வேண்டிய தொகை:* ${formatINR(params.installmentDue)}
+• *Scheme / சீட்டு:* ${params.groupName}
+• *Chit Date / சீட்டு தேதி:* ${nDate}
+• *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்
+• *சீட்டுக்கு கட்ட வேண்டிய பணம்:* ${formatINR(params.installmentDue)}
+• *காசுரு:* ${formatINR(kasiruAmt)}
+• *தள்ளுபடி:* ${formatINR(thalubadiAmt)}
 
-_Calculation / கணக்கீடு:_
-_(Base ${formatINR(baseAmt)} - Dividend ${formatINR(params.dividendSavings)} = ${formatINR(params.installmentDue)})_
-
-In this date (${nDate}), your monthly due is ${formatINR(params.installmentDue)}. Kindly clear your installment on or before the due date.
-Payment Modes: Cash, GPay, PhonePe, Bank Transfer.
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
@@ -236,7 +263,8 @@ Ph: +91 98765 43210`;
 
 /**
  * Winner Prize Payout & Installment Receipt via WhatsApp
- * Sent directly to the winning member when the agent disburses bulk or installment payouts
+ * Sent directly to the person who took the chit when disbursing bulk or installment payouts
+ * Matches Diary Page 3 & 4: Chit எடுத்தவர்க்கு payment பண்ணும்போது MSG (3 types)
  */
 export function createWinnerPayoutInstallmentWhatsAppUrl(params: {
   phone: string;
@@ -261,27 +289,43 @@ export function createWinnerPayoutInstallmentWhatsAppUrl(params: {
     year: 'numeric',
   });
 
+  const prevPaid = Math.max(0, params.totalDisbursedSoFar - params.installmentAmount);
+  const isSettled = params.remainingBalance <= 0;
+
+  let payoutLines = '';
+  if (prevPaid > 0) {
+    // Case 3 (Diary Page 4): Subsequent / next installment
+    payoutLines =
+`• *ஏற்கனவே பெறப்பட்ட தொகை:* ${formatINR(prevPaid)}
+• *தற்போது தரப்படும் தொகை:* ${formatINR(params.installmentAmount)}
+• *மீதி தரவேண்டிய தொகை:* ${isSettled ? 'NIL' : formatINR(params.remainingBalance)}
+${isSettled ? '• *கணக்கு முடிக்கப்பட்டது. ✓*' : (params.nextExpectedPayoutDate ? `• *அடுத்த தவணை தேதி:* ${params.nextExpectedPayoutDate}` : '')}`;
+  } else if (isSettled) {
+    // Case 1 (Diary Page 3): Full settlement in 1 payment
+    payoutLines =
+`• *தற்போது தரப்படும் தொகை:* ${formatINR(params.installmentAmount)} (முழுத் தொகை)
+• *மீதி தரவேண்டிய தொகை:* NIL
+• *கணக்கு முடிக்கப்பட்டது. ✓*`;
+  } else {
+    // Case 2 (Diary Page 3): First partial payment
+    payoutLines =
+`• *தற்போது தரப்படும் தொகை:* ${formatINR(params.installmentAmount)}
+• *மீதி தரவேண்டிய தொகை:* ${formatINR(params.remainingBalance)}
+${params.nextExpectedPayoutDate ? `• *அடுத்த தவணை தேதி:* ${params.nextExpectedPayoutDate}` : ''}`;
+  }
+
   const text =
 `வணக்கம் / Hello ${params.winnerName},
 
-🎉 *RAJAMANICKAM CHIT FUND*
-*Prize Money Disbursement Receipt / ஏல வெற்றித் தொகை வழங்கல் ரசீது*
+*RAJAMANICKAM CHIT FUND*
+*Chit Payout Receipt / சீட்டு எடுத்த தொகை வழங்கல் ரசீது*
 
-• *Scheme / திட்டம்:* ${params.groupName}
-• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• *Installment / தவணை:* Prize Payout Installment #${params.installmentNumber} (பரிசு தவணை #${params.installmentNumber})
-• *Amount Paid Now / இப்போது வழங்கிய தொகை:* ${formatINR(params.installmentAmount)}
-• *Payment Date / வழங்கிய தேதி:* ${pDate}
+• *Scheme / சீட்டு:* ${params.groupName}
+• *Chit Date / சீட்டு தேதி:* ${pDate}
+• *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்
+• *சீட்டு எடுத்த தொகை:* ${formatINR(params.totalPayoutAmount)}
+${payoutLines}
 ${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• *Ref / UTR No:* ${params.receiptReference}\n` : ''}
-*Prize Payout Summary / பரிசுத் தொகை சுருக்கம்:*
-• *Total Prize / மொத்த வெற்றித் தொகை:* ${formatINR(params.totalPayoutAmount)}
-• *Total Paid So Far / இதுவரை வழங்கியது:* ${formatINR(params.totalDisbursedSoFar)}
-• *Remaining Balance / மீதம் வழங்க வேண்டியது:* ${params.remainingBalance <= 0 ? '₹0 (Fully Settled ✓ / கணக்கு முடிக்கப்பட்டது)' : `${formatINR(params.remainingBalance)} (Pending)`}
-${params.remainingBalance > 0 && params.nextExpectedPayoutDate ? `• *Next Installment Due Date / அடுத்த தவணை தேதி:* ${params.nextExpectedPayoutDate}\n` : ''}
-${params.remainingBalance <= 0 
-  ? 'Your winning prize has been fully disbursed with thanks!\nதங்களின் வெற்றித் தொகை முழுமையாக வழங்கப்பட்டு கணக்கு முடிக்கப்பட்டது!'
-  : 'The remaining prize balance will be disbursed in upcoming installment(s).\nமீதமுள்ள தொகை அடுத்த தவணையில் தங்களுக்கு வழங்கப்படும்.'}
-
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Salem*
 Ph: +91 98765 43210`;

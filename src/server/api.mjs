@@ -462,10 +462,17 @@ apiRouter.get('/past-chit-groups/:id/snapshot', async (req, res) => {
 apiRouter.post('/chit-groups', async (req, res) => {
   try {
     const { name, total_pot_value, total_months, start_date, notes } = req.body;
+    if (!name || !total_pot_value || !total_months || !start_date) {
+      return res.status(400).json({ error: 'Please provide chit group name, pot value, duration in months, and start date.' });
+    }
+
     const totalPot = Number(total_pot_value);
-    const months = Number(total_months) || 20;
-    const totalShares = 20; // Standard 20 months & 20 members/shares per scheme
-    const baseAmount = totalPot / months;
+    const months = parseInt(total_months, 10);
+    if (isNaN(months) || months < 1) {
+      return res.status(400).json({ error: 'Duration must be at least 1 month.' });
+    }
+    const totalShares = months; // Scheme size matches duration (e.g. 20 months -> 20 members)
+    const baseAmount = Math.round(totalPot / months);
 
     const [newGroup] = await sql`
       INSERT INTO chit_groups (
@@ -479,7 +486,7 @@ apiRouter.post('/chit-groups', async (req, res) => {
     // Log Activity
     await sql`
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
-      VALUES ('GROUP_CREATED', ${newGroup.id}, ${newGroup.id}, ${`Created chit group "${name}" of ₹${totalPot.toLocaleString('en-IN')}`});
+      VALUES ('GROUP_CREATED', ${newGroup.id}, ${newGroup.id}, ${`Created chit group "${name}" of ₹${totalPot.toLocaleString('en-IN')} for ${months} months starting ${start_date}`});
     `;
 
     res.status(201).json(newGroup);
@@ -619,9 +626,9 @@ apiRouter.post('/member-shares', async (req, res) => {
     if (!group) {
       return res.status(404).json({ error: 'Chit group not found.' });
     }
-    if (group.status !== 'UPCOMING') {
+    if (group.status === 'COMPLETED') {
       return res.status(400).json({
-        error: 'Rule 2 Violation: Shares can only be assigned before the chit group starts. Mid-term share additions are strictly prohibited.'
+        error: 'Cannot assign shares to a completed chit group.'
       });
     }
 
@@ -689,6 +696,61 @@ apiRouter.post('/member-shares', async (req, res) => {
     }
 
     res.status(201).json({ success: true, count: created.length, shares: created });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.delete('/chit-groups/:groupId/members/:memberId', async (req, res) => {
+  try {
+    const { groupId, memberId } = req.params;
+
+    const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${groupId};`;
+    if (!group) return res.status(404).json({ error: 'Chit group not found.' });
+
+    const [member] = await sql`SELECT * FROM members WHERE id = ${memberId};`;
+    if (!member) return res.status(404).json({ error: 'Member not found.' });
+
+    // Check if member is prized in this group
+    const [prized] = await sql`
+      SELECT ms.share_ticket_number, ms.prized_month_number 
+      FROM member_shares ms
+      WHERE ms.chit_group_id = ${groupId} AND ms.member_id = ${memberId} AND ms.is_prized = true;
+    `;
+    if (prized) {
+      return res.status(400).json({
+        error: `Cannot remove member: Member #${prized.share_ticket_number} won the auction in Month ${prized.prized_month_number}. Delete or reset the auction first before removing.`
+      });
+    }
+
+    // Get all shares for this member in this group
+    const shares = await sql`SELECT id, share_ticket_number FROM member_shares WHERE chit_group_id = ${groupId} AND member_id = ${memberId};`;
+    if (shares.length === 0) {
+      return res.status(404).json({ error: 'Member is not enrolled in this chit group.' });
+    }
+
+    const shareIds = shares.map((s) => s.id);
+
+    // Delete payment transactions for these shares
+    await sql`DELETE FROM payment_transactions WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds});`;
+
+    // Delete installments for these shares
+    await sql`DELETE FROM installments WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds});`;
+
+    // Delete member_shares
+    await sql`DELETE FROM member_shares WHERE id = ANY(${shareIds});`;
+
+    // Log Activity
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES ('MEMBER_REMOVED', ${memberId}, ${groupId}, ${`Removed member "${member.name}" from chit group "${group.name}"`});
+    `;
+
+    res.json({
+      success: true,
+      message: `Member "${member.name}" removed from "${group.name}" successfully.`,
+      removed_shares: shares.map((s) => s.share_ticket_number),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1061,9 +1123,14 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
         m.name as winning_member_name,
         m.phone as winning_member_phone,
         m.whatsapp_phone as winning_member_whatsapp,
+        COALESCE(tm.id, m.id) as taken_by_member_id,
+        COALESCE(tm.name, m.name) as taken_by_member_name,
+        COALESCE(tm.phone, m.phone) as taken_by_member_phone,
+        COALESCE(tm.whatsapp_phone, m.whatsapp_phone) as taken_by_member_whatsapp,
         s.share_ticket_number
       FROM auctions a
       JOIN members m ON a.winning_member_id = m.id
+      LEFT JOIN members tm ON a.taken_by_member_id = tm.id
       JOIN member_shares s ON a.winning_share_id = s.id
       WHERE a.month_number = ${month};
     `;
@@ -1168,6 +1235,10 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
                 winning_member_name: auction.winning_member_name,
                 winning_member_phone: auction.winning_member_phone,
                 winning_member_whatsapp: auction.winning_member_whatsapp,
+                taken_by_member_id: auction.taken_by_member_id,
+                taken_by_member_name: auction.taken_by_member_name,
+                taken_by_member_phone: auction.taken_by_member_phone,
+                taken_by_member_whatsapp: auction.taken_by_member_whatsapp,
                 share_ticket_number: auction.share_ticket_number,
                 winning_share_id: auction.winning_share_id,
                 payout_amount: Number(auction.payout_amount),
@@ -1230,6 +1301,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
       chit_group_id,
       month_number,
       winning_member_id,
+      taken_by_member_id,
       winner_payout_amount,
       auction_date,
       notes,
@@ -1252,6 +1324,8 @@ apiRouter.post('/bidding/record', async (req, res) => {
         error: `Winning amount must be between ₹1 and ₹${totalPot.toLocaleString('en-IN')}.`,
       });
     }
+
+    const takerId = taken_by_member_id || winning_member_id;
 
     // STRICT 1-WINNER RULE:
     // Only 1 chit taken per month. Once a member wins in any month, they cannot take another month!
@@ -1312,10 +1386,12 @@ apiRouter.post('/bidding/record', async (req, res) => {
     const [auction] = await sql`
       INSERT INTO auctions (
         chit_group_id, month_number, auction_date, winning_member_id, winning_share_id,
+        taken_by_member_id,
         bid_discount_amount, organizer_commission, net_dividend_pool, dividend_per_share,
         net_installment_due, payout_amount, notes
       ) VALUES (
         ${chit_group_id}, ${mNum}, ${aDate}, ${winning_member_id}, ${winningShare.id},
+        ${takerId},
         ${bidDiscount}, ${organizerCommission}, ${netDividendPool}, ${dividendPerShare},
         ${netInstallmentDue}, ${payoutAmount}, ${notes || null}
       )
@@ -1324,6 +1400,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
         auction_date = EXCLUDED.auction_date,
         winning_member_id = EXCLUDED.winning_member_id,
         winning_share_id = EXCLUDED.winning_share_id,
+        taken_by_member_id = EXCLUDED.taken_by_member_id,
         bid_discount_amount = EXCLUDED.bid_discount_amount,
         organizer_commission = EXCLUDED.organizer_commission,
         net_dividend_pool = EXCLUDED.net_dividend_pool,
@@ -1467,10 +1544,16 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
     }
 
     const [auction] = await sql`
-      SELECT a.*, g.name as group_name, m.name as member_name, m.phone as member_phone
+      SELECT a.*, g.name as group_name, 
+             m.name as winning_member_name, m.phone as winning_member_phone,
+             COALESCE(tm.id, m.id) as recipient_id,
+             COALESCE(tm.name, m.name) as recipient_name,
+             COALESCE(tm.phone, m.phone) as recipient_phone,
+             COALESCE(tm.whatsapp_phone, m.whatsapp_phone) as recipient_whatsapp
       FROM auctions a
       JOIN chit_groups g ON a.chit_group_id = g.id
       JOIN members m ON a.winning_member_id = m.id
+      LEFT JOIN members tm ON a.taken_by_member_id = tm.id
       WHERE a.id = ${auctionId};
     `;
 
@@ -1493,7 +1576,7 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
         auction_id, chit_group_id, member_id, installment_number,
         amount_paid, payment_date, payment_method, receipt_reference, notes
       ) VALUES (
-        ${auction.id}, ${auction.chit_group_id}, ${auction.winning_member_id},
+        ${auction.id}, ${auction.chit_group_id}, ${auction.recipient_id},
         ${nextInstNumber}, ${amount}, ${pDate}, ${pMethod}, ${ref}, ${notes || null}
       )
       RETURNING *;
@@ -1532,7 +1615,7 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description, recorded_by)
       VALUES (
         'WINNER_PAYOUT_RECORDED', ${newPayout.id}, ${auction.chit_group_id},
-        ${`Winner prize payout installment #${nextInstNumber} of ₹${amount.toLocaleString('en-IN')} paid to ${auction.member_name} (${auction.group_name} Month ${auction.month_number}).`},
+        ${`Winner prize payout installment #${nextInstNumber} of ₹${amount.toLocaleString('en-IN')} paid to ${auction.recipient_name} (${auction.group_name} Month ${auction.month_number}).`},
         'Venkatesan'
       );
     `;
@@ -1540,6 +1623,8 @@ apiRouter.post('/bidding/auction/:auctionId/payouts', async (req, res) => {
     res.status(201).json({
       success: true,
       message: `Winner payout installment #${nextInstNumber} of ₹${amount.toLocaleString('en-IN')} recorded successfully.`,
+      recipient_name: auction.recipient_name,
+      recipient_phone: auction.recipient_phone,
       installment: {
         id: newPayout.id,
         installment_number: Number(newPayout.installment_number),

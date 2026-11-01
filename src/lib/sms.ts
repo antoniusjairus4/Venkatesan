@@ -123,6 +123,7 @@ export function createPaymentClearedSmsUrl(params: {
   monthNumber: number;
   amountPaid?: number;
   installmentDue?: number;
+  previouslyPaid?: number;
   thalubadi?: number;
   kasiru?: number;
   remainingBalance?: number;
@@ -136,21 +137,48 @@ export function createPaymentClearedSmsUrl(params: {
     year: 'numeric',
   });
 
+  const payAmt = params.amountPaid || 0;
+  const remBal = params.remainingBalance || 0;
+  const prevPaid = params.previouslyPaid || 0;
+  const isAfterPartial = prevPaid > 0;
+  const dueAmt = params.installmentDue || (prevPaid + payAmt + remBal);
+  const isSettled = remBal <= 0;
+
+  let breakdownLines = '';
+  if (isAfterPartial) {
+    // Case 3 (Diary Page 5): After partial payment completion / subsequent payment
+    breakdownLines =
+`• முன்னர் செலுத்திய தொகை: ₹${prevPaid.toLocaleString('en-IN')}
+• தற்போது செலுத்திய தொகை: ₹${payAmt.toLocaleString('en-IN')}
+• மீதி செலுத்த வேண்டிய தொகை: ${isSettled ? 'NIL' : `₹${remBal.toLocaleString('en-IN')}`}
+${isSettled ? '• கணக்கு முடிக்கப்பட்டது. ✓' : (params.expectedPaymentDate ? `• அடுத்த தவணை தேதி: ${params.expectedPaymentDate}` : '')}`;
+  } else if (isSettled) {
+    // Case 1 (Diary Page 4): Full payment at once
+    breakdownLines =
+`• தற்போது செலுத்திய தொகை: ₹${payAmt.toLocaleString('en-IN')}
+• மீதி செலுத்த வேண்டிய தொகை: NIL
+• கணக்கு முடிக்கப்பட்டது. ✓`;
+  } else {
+    // Case 2 (Diary Page 5): First partial payment
+    breakdownLines =
+`• தற்போது செலுத்திய தொகை: ₹${payAmt.toLocaleString('en-IN')}
+• மீதி செலுத்த வேண்டிய தொகை: ₹${remBal.toLocaleString('en-IN')}
+${params.expectedPaymentDate ? `• அடுத்த தவணை தேதி: ${params.expectedPaymentDate}` : ''}`;
+  }
+
   const text =
 `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Payment Received Confirmation / தவணை வரவு ரசீது
+Payment Confirmation Receipt / தவணை வரவு ரசீது
 
-We got your payment with thanks!
-தங்களின் தவணைத் தொகை பெறப்பட்டது!
-
-• Payment Date / செலுத்திய தேதி: ${pDate}
-• Scheme / திட்டம்: ${params.groupName}
-• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-${params.amountPaid ? `• Amount Paid / செலுத்திய தொகை: ₹${params.amountPaid.toLocaleString('en-IN')}\n` : ''}${params.installmentDue ? `• Month Due / இந்த மாத தவணை: ₹${params.installmentDue.toLocaleString('en-IN')}\n` : ''}${params.thalubadi ? `• Month Thalubadi / தள்ளுபடி: ₹${params.thalubadi.toLocaleString('en-IN')}\n` : ''}${params.kasiru ? `• Month Kasiru / காசீரு: ₹${params.kasiru.toLocaleString('en-IN')}\n` : ''}• Balance Remaining / மீதம்: ${params.remainingBalance !== undefined && params.remainingBalance > 0 ? `₹${params.remainingBalance.toLocaleString('en-IN')} (Pending)` : '₹0 (Cleared ✓ / முழுமையாக செலுத்தப்பட்டது)'}
-${params.remainingBalance !== undefined && params.remainingBalance > 0 && params.expectedPaymentDate ? `• Promised Next Payment Date / அடுத்த தவணை தேதி: ${params.expectedPaymentDate}\n` : ''}${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}
-Thank you for your prompt clearance!
+• Scheme / சீட்டு: ${params.groupName}
+• Chit Date / சீட்டு தேதி: ${pDate}
+• Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
+• சீட்டுக்கு கட்ட வேண்டிய தொகை: ₹${dueAmt.toLocaleString('en-IN')}
+${breakdownLines}
+${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}
+Thank you for your prompt payment!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
@@ -277,26 +305,37 @@ Ph: +91 98765 43210`;
  * 6. Bidding Winner Notification (Native SMS - Bilingual English & Tamil)
  * Targeted strictly ONLY to the winning bidder
  */
+/**
+ * 6. Bidding Winner Notification (Native SMS - Bilingual English & Tamil)
+ * Targeted strictly to the person who took the chit
+ * Matches Diary Page 1 & 2: சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு
+ */
 export function getBiddingWinnerText(params: {
   winnerName: string;
   groupName: string;
   monthNumber: number;
   payoutAmount: number;
   tasiruAmount: number;
+  chitDate?: string;
 }): string {
+  const cDate = params.chitDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   return `வணக்கம் / Hello ${params.winnerName},
 
-வாழ்த்துக்கள்! RAJAMANICKAM CHIT FUND
-Bidding Winner Notification / ஏல வெற்றி அறிவிப்பு
+RAJAMANICKAM CHIT FUND
+Chit Winner Notice / சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு
 
-• Scheme / திட்டம்: ${params.groupName}
-• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• Prize Payout / வெற்றித் தொகை: ₹${params.payoutAmount.toLocaleString('en-IN')}
-• Tasiru (Discount) / தள்ளுபடி: ₹${params.tasiruAmount.toLocaleString('en-IN')}
+• Scheme / சீட்டு: ${params.groupName}
+• Chit Date / சீட்டு தேதி: ${cDate}
+• Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
+• Chit Prize / சீட்டு எடுத்த தொகை: ₹${params.payoutAmount.toLocaleString('en-IN')}
+• Discount / தள்ளுபடி: ₹${params.tasiruAmount.toLocaleString('en-IN')}
 
-Congratulations! You are the prized winning bidder for Month ${params.monthNumber} in ${params.groupName}.
-Your winning prize payout will be disbursed shortly to your registered bank account.
-தங்களின் ஏல வெற்றித் தொகை விரைவில் தங்களுக்கு அலுவலகம் மூலம் வழங்கப்படும்.
+வாழ்த்துக்கள்! தங்களின் சீட்டு எடுத்த தொகை விரைவில் தங்களுக்கு வழங்கப்படும்.
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
@@ -310,6 +349,7 @@ export function createBiddingWinnerSmsUrl(params: {
   monthNumber: number;
   payoutAmount: number;
   tasiruAmount: number;
+  chitDate?: string;
 }): string {
   const text = getBiddingWinnerText(params);
   return createSmsUrl(params.phone, text);
@@ -317,7 +357,7 @@ export function createBiddingWinnerSmsUrl(params: {
 
 /**
  * 7. Monthly Bidding Member Due Notification (Native SMS - Bilingual English & Tamil)
- * Message 2: "How much was the thalubadi this month the amount of kasiru how much should one pay with the date"
+ * Matches Diary Page 2: Chit-க்கு கட்டவேண்டிய Amount பற்றி 20 member ku MSG
  */
 export function getMonthlyBiddingDueText(params: {
   memberName: string;
@@ -344,23 +384,16 @@ export function getMonthlyBiddingDueText(params: {
   return `வணக்கம் / Hello ${params.memberName},
 
 RAJAMANICKAM CHIT FUND
-Monthly Bidding & Installment Due Notice
-மாதாந்திர ஏலம் & தவணை அறிவிப்பு
+Monthly Due Notice / மாதாந்திர தவணை அறிவிப்பு
 
-• Notice Date / அறிவிப்பு தேதி: ${nDate}
-• Scheme / திட்டம்: ${params.groupName}
-• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• Thalubadi (Discount) / தள்ளுபடி: ₹${thalubadiAmt.toLocaleString('en-IN')}
-• Kasiru (Commission) / காசீரு: ₹${kasiruAmt.toLocaleString('en-IN')}
-• Dividend Savings / உறுப்பினர் சேமிப்பு: ₹${params.dividendSavings.toLocaleString('en-IN')}
-• This Month Due / செலுத்த வேண்டிய தொகை: ₹${params.installmentDue.toLocaleString('en-IN')}
+• Scheme / சீட்டு: ${params.groupName}
+• Chit Date / சீட்டு தேதி: ${nDate}
+• Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
+• சீட்டுக்கு கட்ட வேண்டிய பணம்: ₹${params.installmentDue.toLocaleString('en-IN')}
+• காசுரு: ₹${kasiruAmt.toLocaleString('en-IN')}
+• தள்ளுபடி: ₹${thalubadiAmt.toLocaleString('en-IN')}
 
-Calculation / கணக்கீடு:
-(Base ₹${baseAmt.toLocaleString('en-IN')} - Dividend ₹${params.dividendSavings.toLocaleString('en-IN')} = ₹${params.installmentDue.toLocaleString('en-IN')})
-
-In this date (${nDate}), your monthly due is ₹${params.installmentDue.toLocaleString('en-IN')}. Kindly clear your installment on or before the due date.
-Payment Modes / வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
-குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
+குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
@@ -386,7 +419,8 @@ export function createMonthlyBiddingDueSmsUrl(params: {
 
 /**
  * 8. Winner Prize Payout & Installment Receipt (Native SMS - Bilingual English & Tamil)
- * Sent directly to the winning member when the agent disburses bulk or installment payouts
+ * Sent directly to the person who took the chit when disbursing bulk or installment payouts
+ * Matches Diary Page 3 & 4: Chit எடுத்தவர்க்கு payment பண்ணும்போது MSG (3 types)
  */
 export function getWinnerPayoutInstallmentText(params: {
   winnerName: string;
@@ -409,27 +443,42 @@ export function getWinnerPayoutInstallmentText(params: {
     year: 'numeric',
   });
 
+  const prevPaid = Math.max(0, params.totalDisbursedSoFar - params.installmentAmount);
+  const isSettled = params.remainingBalance <= 0;
+
+  let payoutLines = '';
+  if (prevPaid > 0) {
+    // Case 3 (Diary Page 4): Subsequent / next installment
+    payoutLines =
+`• ஏற்கனவே பெறப்பட்ட தொகை: ₹${prevPaid.toLocaleString('en-IN')}
+• தற்போது தரப்படும் தொகை: ₹${params.installmentAmount.toLocaleString('en-IN')}
+• மீதி தரவேண்டிய தொகை: ${isSettled ? 'NIL' : `₹${params.remainingBalance.toLocaleString('en-IN')}`}
+${isSettled ? '• கணக்கு முடிக்கப்பட்டது. ✓' : (params.nextExpectedPayoutDate ? `• அடுத்த தவணை தேதி: ${params.nextExpectedPayoutDate}` : '')}`;
+  } else if (isSettled) {
+    // Case 1 (Diary Page 3): Full settlement in 1 payment
+    payoutLines =
+`• தற்போது தரப்படும் தொகை: ₹${params.installmentAmount.toLocaleString('en-IN')} (முழுத் தொகை)
+• மீதி தரவேண்டிய தொகை: NIL
+• கணக்கு முடிக்கப்பட்டது. ✓`;
+  } else {
+    // Case 2 (Diary Page 3): First partial payment
+    payoutLines =
+`• தற்போது தரப்படும் தொகை: ₹${params.installmentAmount.toLocaleString('en-IN')}
+• மீதி தரவேண்டிய தொகை: ₹${params.remainingBalance.toLocaleString('en-IN')}
+${params.nextExpectedPayoutDate ? `• அடுத்த தவணை தேதி: ${params.nextExpectedPayoutDate}` : ''}`;
+  }
+
   return `வணக்கம் / Hello ${params.winnerName},
 
-🎉 RAJAMANICKAM CHIT FUND
-Prize Money Disbursement Receipt
-ஏல வெற்றித் தொகை வழங்கல் ரசீது
+RAJAMANICKAM CHIT FUND
+Chit Payout Receipt / சீட்டு எடுத்த தொகை வழங்கல் ரசீது
 
-• Scheme / திட்டம்: ${params.groupName}
-• Month / மாதம்: Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
-• Installment / தவணை: Prize Payout Installment #${params.installmentNumber} (பரிசு தவணை #${params.installmentNumber})
-• Amount Paid Now / இப்போது வழங்கிய தொகை: ₹${params.installmentAmount.toLocaleString('en-IN')}
-• Payment Date / வழங்கிய தேதி: ${pDate}
+• Scheme / சீட்டு: ${params.groupName}
+• Chit Date / சீட்டு தேதி: ${pDate}
+• Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
+• சீட்டு எடுத்த தொகை: ₹${params.totalPayoutAmount.toLocaleString('en-IN')}
+${payoutLines}
 ${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• Ref / UTR No: ${params.receiptReference}\n` : ''}
-Prize Payout Summary / பரிசுத் தொகை சுருக்கம்:
-• Total Prize / மொத்த வெற்றித் தொகை: ₹${params.totalPayoutAmount.toLocaleString('en-IN')}
-• Total Paid So Far / இதுவரை வழங்கியது: ₹${params.totalDisbursedSoFar.toLocaleString('en-IN')}
-• Remaining Balance / மீதம் வழங்க வேண்டியது: ${params.remainingBalance <= 0 ? '₹0 (Fully Settled ✓ / கணக்கு முடிக்கப்பட்டது)' : `₹${params.remainingBalance.toLocaleString('en-IN')} (Pending)`}
-${params.remainingBalance > 0 && params.nextExpectedPayoutDate ? `• Next Installment Due Date / அடுத்த தவணை தேதி: ${params.nextExpectedPayoutDate}\n` : ''}
-${params.remainingBalance <= 0 
-  ? 'Your winning prize has been fully disbursed with thanks!\nதங்களின் வெற்றித் தொகை முழுமையாக வழங்கப்பட்டு கணக்கு முடிக்கப்பட்டது!'
-  : 'The remaining prize balance will be disbursed in upcoming installment(s).\nமீதமுள்ள தொகை அடுத்த தவணையில் தங்களுக்கு வழங்கப்படும்.'}
-
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Salem
 Ph: +91 98765 43210`;

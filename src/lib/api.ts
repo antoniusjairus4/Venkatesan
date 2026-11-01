@@ -201,6 +201,34 @@ export async function createMember(data: {
   return res.json();
 }
 
+export async function enrollMemberInGroup(data: {
+  chit_group_id: string;
+  member_id: string;
+  share_count: number;
+}) {
+  const res = await fetch('/api/member-shares', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to enroll member in chit group');
+  }
+  return res.json();
+}
+
+export async function removeMemberFromGroup(groupId: string, memberId: string) {
+  const res = await fetch(`/api/chit-groups/${groupId}/members/${memberId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to remove member from chit group');
+  }
+  return res.json();
+}
+
 export async function fetchInstallments(params?: {
   chit_group_id?: string;
   month_number?: number;
@@ -362,6 +390,10 @@ export interface MonthSchemeBiddingData {
     winning_member_name: string;
     winning_member_phone: string;
     winning_member_whatsapp?: string;
+    taken_by_member_id?: string;
+    taken_by_member_name?: string;
+    taken_by_member_phone?: string;
+    taken_by_member_whatsapp?: string;
     share_ticket_number: number;
     winning_share_id: string;
     payout_amount: number;
@@ -411,6 +443,7 @@ export async function recordBidding(data: {
   chit_group_id: string;
   month_number: number;
   winning_member_id: string;
+  taken_by_member_id?: string;
   winner_payout_amount: number;
   auction_date?: string;
   notes?: string;

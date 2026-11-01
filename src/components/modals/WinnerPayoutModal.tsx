@@ -143,12 +143,14 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
   };
 
   const nextPayoutDateStr = payoutSummary?.next_expected_payout_date || nextExpectedPayoutDate;
+  const recipientName = auction.taken_by_member_name || auction.winning_member_name;
+  const recipientPhone = auction.taken_by_member_phone || auction.winning_member_phone;
 
   // Build message parameters for active installment
   const messageParams = activeInstallment
     ? {
-        phone: auction.winning_member_phone,
-        winnerName: auction.winning_member_name,
+        phone: recipientPhone,
+        winnerName: recipientName,
         groupName: scheme.group.name,
         monthNumber: selectedMonth,
         installmentNumber: activeInstallment.installment_number,
@@ -181,11 +183,13 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
                   Winner Prize Payout & Installments
                 </h3>
                 <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-400 text-forest-950">
-                  வெற்றித் தொகை
+                  சீட்டு எடுத்த தொகை
                 </span>
               </div>
               <p className="text-xs text-forest-200 mt-0.5">
-                {auction.winning_member_name} &bull; Member #{auction.share_ticket_number} &bull; {scheme.group.name} (Month {selectedMonth} of 20)
+                {recipientName !== auction.winning_member_name
+                  ? `${recipientName} (சீட்டு எடுத்தவர்) • Member #${auction.share_ticket_number} ${auction.winning_member_name} • ${scheme.group.name} (Month ${selectedMonth} of 20)`
+                  : `${auction.winning_member_name} • Member #${auction.share_ticket_number} • ${scheme.group.name} (Month ${selectedMonth} of 20)`}
               </p>
             </div>
           </div>
@@ -240,7 +244,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Total Prize Won
+                  சீட்டு எடுத்த தொகை (Prize)
                 </span>
                 <strong className="text-base font-black text-slate-900 block mt-0.5">
                   {formatINR(totalPayout)}

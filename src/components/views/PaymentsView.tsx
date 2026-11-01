@@ -526,6 +526,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
               ticketNumber: inst.share_ticket_number,
               monthNumber: selectedMonth,
               amountPaid: paid,
+              installmentDue: due,
               remainingBalance: remaining,
               status: inst.status,
               paymentDate: paymentDateStr,

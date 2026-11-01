@@ -53,6 +53,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     ticketNumber: number;
     monthNumber: number;
     amountPaid: number;
+    previouslyPaid?: number;
+    installmentDue?: number;
     paymentMethod: string;
     receiptNumber?: string;
     remainingBalance: number;
@@ -156,6 +158,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           ticketNumber: currentInst.share_ticket_number || 1,
           monthNumber: currentInst.month_number,
           amountPaid: payAmt,
+          previouslyPaid: currentPaid,
+          installmentDue: due,
           paymentMethod,
           receiptNumber: receiptNumber || undefined,
           remainingBalance: res.remaining_balance,
@@ -251,6 +255,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     groupName: receiptData.groupName,
                     monthNumber: receiptData.monthNumber,
                     amountPaid: receiptData.amountPaid,
+                    previouslyPaid: receiptData.previouslyPaid,
+                    installmentDue: receiptData.installmentDue,
                     remainingBalance: receiptData.remainingBalance,
                     paymentMethod: receiptData.paymentMethod,
                     paymentDate: receiptData.paymentDate,
@@ -270,6 +276,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     ticketNumber: receiptData.ticketNumber,
                     monthNumber: receiptData.monthNumber,
                     amountPaid: receiptData.amountPaid,
+                    previouslyPaid: receiptData.previouslyPaid,
+                    installmentDue: receiptData.installmentDue,
                     paymentMethod: receiptData.paymentMethod,
                     receiptNumber: receiptData.receiptNumber,
                     remainingBalance: receiptData.remainingBalance,

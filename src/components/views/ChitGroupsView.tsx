@@ -20,11 +20,20 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle2,
+  UserPlus,
+  UserMinus,
+  Plus,
+  Check,
 } from 'lucide-react';
 import {
   ChitGroup,
   GroupSubscriber,
+  Member,
   fetchGroupSubscribers,
+  fetchMembers,
+  enrollMemberInGroup,
+  removeMemberFromGroup,
+  createMember,
   deleteChitGroup,
   moveChitGroupAsCompleted,
 } from '@/lib/api';
@@ -63,6 +72,115 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
   const [isDeletingGroup, setIsDeletingGroup] = useState<boolean>(false);
   const [moveConfirmGroup, setMoveConfirmGroup] = useState<ChitGroup | null>(null);
   const [isMovingCompleted, setIsMovingCompleted] = useState<boolean>(false);
+
+  // Add Member to Group states
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState<boolean>(false);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [loadingAllMembers, setLoadingAllMembers] = useState<boolean>(false);
+  const [addMemberMode, setAddMemberMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
+  const [selectedExistingMemberId, setSelectedExistingMemberId] = useState<string>('');
+  const [memberSearchQuery, setMemberSearchQuery] = useState<string>('');
+  const [newMemberName, setNewMemberName] = useState<string>('');
+  const [newMemberPhone, setNewMemberPhone] = useState<string>('');
+  const [newMemberAddress, setNewMemberAddress] = useState<string>('');
+  const [addShareCount, setAddShareCount] = useState<number>(1);
+  const [isAddingMember, setIsAddingMember] = useState<boolean>(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+
+  // Delete Member from Group state
+  const [deleteMemberSub, setDeleteMemberSub] = useState<GroupSubscriber | null>(null);
+  const [isDeletingMember, setIsDeletingMember] = useState<boolean>(false);
+
+  const refreshSubscribers = async (groupId: string) => {
+    try {
+      setLoadingSubscribers(true);
+      const data = await fetchGroupSubscribers(groupId);
+      setSubscribers(data);
+    } catch (err) {
+      console.error('Failed to load group subscribers:', err);
+    } finally {
+      setLoadingSubscribers(false);
+    }
+  };
+
+  const loadAllMembers = async () => {
+    try {
+      setLoadingAllMembers(true);
+      const list = await fetchMembers();
+      setAllMembers(list);
+    } catch (err: unknown) {
+      console.error('Failed to fetch members:', err);
+    } finally {
+      setLoadingAllMembers(false);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGroup) return;
+
+    try {
+      setIsAddingMember(true);
+      setAddMemberError(null);
+
+      let targetMemberId = selectedExistingMemberId;
+
+      if (addMemberMode === 'NEW') {
+        if (!newMemberName.trim() || !newMemberPhone.trim()) {
+          setAddMemberError('Please enter member name and phone number.');
+          setIsAddingMember(false);
+          return;
+        }
+        const created = await createMember({
+          name: newMemberName.trim(),
+          phone: newMemberPhone.trim(),
+          address: newMemberAddress.trim() || undefined,
+          chit_group_id: selectedGroup.id,
+          share_count: addShareCount,
+        });
+        targetMemberId = created.id;
+      } else {
+        if (!targetMemberId) {
+          setAddMemberError('Please choose an existing member.');
+          setIsAddingMember(false);
+          return;
+        }
+        await enrollMemberInGroup({
+          chit_group_id: selectedGroup.id,
+          member_id: targetMemberId,
+          share_count: addShareCount,
+        });
+      }
+
+      setIsAddMemberOpen(false);
+      setNewMemberName('');
+      setNewMemberPhone('');
+      setNewMemberAddress('');
+      setSelectedExistingMemberId('');
+      setAddShareCount(1);
+      await refreshSubscribers(selectedGroup.id);
+      if (onGroupDeleted) onGroupDeleted();
+    } catch (err: unknown) {
+      setAddMemberError((err as Error).message || 'Failed to add member to group');
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  const handleDeleteMember = async () => {
+    if (!selectedGroup || !deleteMemberSub) return;
+    try {
+      setIsDeletingMember(true);
+      await removeMemberFromGroup(selectedGroup.id, deleteMemberSub.member_id);
+      setDeleteMemberSub(null);
+      await refreshSubscribers(selectedGroup.id);
+      if (onGroupDeleted) onGroupDeleted();
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to remove member from group');
+    } finally {
+      setIsDeletingMember(false);
+    }
+  };
 
   const handleDeleteGroup = async () => {
     if (!deleteConfirmGroup) return;
@@ -311,11 +429,24 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
               />
             </div>
 
-            {/* Total Subscribers Count */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Total Subscribers Count & Actions */}
+            <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-xs whitespace-nowrap">
                 All Subscribers ({totalSubscribers})
               </span>
+              {selectedGroup.status !== 'COMPLETED' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddMemberOpen(true);
+                    loadAllMembers();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Add Member</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -554,6 +685,17 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                       <Repeat className="w-3.5 h-3.5 text-amber-700" />
                       <span>Takeover</span>
                     </button>
+
+                    {selectedGroup.status !== 'COMPLETED' && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteMemberSub(sub)}
+                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
+                        title="Remove member from this chit group"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -652,6 +794,288 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                   className="w-full py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* Add Member to Selected Chit Group Modal */}
+        {/* ------------------------------------------------------------ */}
+        {isAddMemberOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-forest-700" />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Add Member to {selectedGroup.name}
+                    </h3>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {totalSharesTaken} / {maxShares || 20} Enrolled ({Math.max(0, (maxShares || 20) - totalSharesTaken)} slots open)
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAddMemberOpen(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddMember} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+                {addMemberError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{addMemberError}</span>
+                  </div>
+                )}
+
+                {/* Mode Switcher: Existing vs New */}
+                <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setAddMemberMode('EXISTING')}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      addMemberMode === 'EXISTING'
+                        ? 'bg-white text-forest-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Select Existing Member
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddMemberMode('NEW')}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      addMemberMode === 'NEW'
+                        ? 'bg-white text-forest-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    + Register New Member
+                  </button>
+                </div>
+
+                {addMemberMode === 'EXISTING' ? (
+                  <div className="space-y-2.5">
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      Search &amp; Select Member
+                    </label>
+
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Search by member name, phone, or town..."
+                        value={memberSearchQuery}
+                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700 placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
+                      {loadingAllMembers ? (
+                        <div className="p-4 text-center text-xs text-slate-400">Loading members...</div>
+                      ) : allMembers.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-slate-400">No members registered yet.</div>
+                      ) : (
+                        allMembers
+                          .filter((m) => {
+                            if (!memberSearchQuery) return true;
+                            const q = memberSearchQuery.toLowerCase();
+                            return (
+                              m.name.toLowerCase().includes(q) ||
+                              m.phone.includes(q) ||
+                              (m.address && m.address.toLowerCase().includes(q))
+                            );
+                          })
+                          .map((m) => {
+                            const isSelected = selectedExistingMemberId === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setSelectedExistingMemberId(m.id)}
+                                className={`w-full p-2.5 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-forest-50/80 font-bold text-forest-900' : 'text-slate-700'
+                                }`}
+                              >
+                                <div>
+                                  <span className="font-extrabold text-slate-900 block">{m.name}</span>
+                                  <span className="text-[10px] text-slate-500">Ph: {m.phone} {m.address ? `• ${m.address}` : ''}</span>
+                                </div>
+                                {isSelected && (
+                                  <span className="w-5 h-5 rounded-full bg-forest-700 text-white flex items-center justify-center text-[10px]">
+                                    ✓
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Full Name (பெயர்)
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        placeholder="e.g. S. Ramanathan"
+                        required
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Mobile Phone (தொலைபேசி எண்)
+                      </label>
+                      <input
+                        type="tel"
+                        value={newMemberPhone}
+                        onChange={(e) => setNewMemberPhone(e.target.value)}
+                        placeholder="e.g. 9842100001"
+                        required
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Address / Town (முகவரி / ஊர்)
+                      </label>
+                      <input
+                        type="text"
+                        value={newMemberAddress}
+                        onChange={(e) => setNewMemberAddress(e.target.value)}
+                        placeholder="e.g. Salem Town"
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Share Count Stepper */}
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-extrabold text-slate-800 block">Number of Shares (சீட்டு எண்ணிக்கை)</span>
+                    <span className="text-[10px] text-slate-500">Each share = {formatINR(Number(selectedGroup.installment_base_amount))}/month base</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={addShareCount <= 1}
+                      onClick={() => setAddShareCount((c) => Math.max(1, c - 1))}
+                      className="w-7 h-7 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold flex items-center justify-center disabled:opacity-30 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-black text-forest-900 min-w-5 text-center">{addShareCount}</span>
+                    <button
+                      type="button"
+                      disabled={addShareCount >= Math.max(1, (maxShares || 20) - totalSharesTaken)}
+                      onClick={() => setAddShareCount((c) => c + 1)}
+                      className="w-7 h-7 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold flex items-center justify-center disabled:opacity-30 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddMemberOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingMember}
+                    className="flex-1 py-2.5 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer"
+                  >
+                    {isAddingMember ? 'Enrolling...' : `+ Enroll ${addShareCount} Share(s)`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ */}
+        {/* Delete / Remove Member Confirmation Modal */}
+        {/* ------------------------------------------------------------ */}
+        {deleteMemberSub && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Remove Member from Group?
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {selectedGroup.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Member Name:</span>
+                  <span className="font-bold text-slate-900">{deleteMemberSub.member_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Phone Number:</span>
+                  <span className="font-semibold text-slate-700">{deleteMemberSub.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Member Slot(s) to Release:</span>
+                  <span className="font-extrabold text-forest-800">
+                    Member #{deleteMemberSub.ticket_numbers?.join(', ')} ({deleteMemberSub.shares_count} shares)
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                ⚠️ Notice: Removing this member will revoke their assigned slot(s) and clean up unprized installments for this group.
+              </p>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDeleteMemberSub(null)}
+                  disabled={isDeletingMember}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteMember}
+                  disabled={isDeletingMember}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isDeletingMember ? (
+                    'Removing...'
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirm Remove</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

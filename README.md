@@ -15,17 +15,18 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
 ## 🌟 Key Features & Capabilities
 
 ### 1. Monthly Chit Bidding & Yelam (Rule 4 & Automated Math)
-- **Interactive 20-Month Slider:** Seamless navigation across the complete 20-month duration of the chit fund cycle.
+- **Interactive Month Slider:** Seamless navigation across the complete duration of the chit fund cycle (10, 12, 20, 25 months).
 - **Multi-Scheme Grid (1L, 2L, 3L):** Simultaneous management of ₹1,00,000, ₹2,00,000, and ₹3,00,000 pots.
 - **Strict Winner Eligibility Enforcement:** Enforces the rule that only **one member can take the chit per month**, and a subscriber who has already won in a previous month is automatically locked and cannot bid again.
+- **Proxy Chit Taker Support (வேறு நபர் சீட்டு எடுத்தல்):** If another member takes the auction winning on behalf of a subscriber slot, the organizer can designate the taker. Winner announcements and prize payout receipts are routed directly to the actual taker's mobile number.
 - **Automated Tamil Nadu Chit Fund Accounting:**
   - Calculates **Thalubadi (தள்ளுபடி / Discount)**: `Total Pot - Winner Prize Amount`.
-  - Calculates **Kasiru (காசீரு / Foreman Commission)**: Fixed `5% of Gross Chit Value`.
+  - Calculates **Kasiru (காசுரு / Foreman Commission)**: Fixed `5% of Gross Chit Value`.
   - Calculates **Net Dividend Pool (லாப ஈவுத்தொகை)**: `Thalubadi - Kasiru`.
-  - Calculates **Monthly Dividend per Subscriber**: Distributed equally across all 20 members.
+  - Calculates **Monthly Dividend per Subscriber**: Distributed equally across all members.
   - Calculates **Monthly Installment Due per Member**: Automatically reduced from base amount: `Base Monthly Installment - Dividend`.
-- **Targeted Winner Announcement:** 1-tap SMS & WhatsApp notification sent strictly to the winning bidder with prize payout and discount details.
-- **Member Due Announcements:** 1-tap notifications (Message 2) to all subscribers detailing the month's auction results, discount, commission, and payable due amount.
+- **Targeted Winner Announcement (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):** 1-tap SMS & WhatsApp notification sent strictly to the chit taker with prize payout and discount details.
+- **Member Due Announcements (மாதாந்திர தவணை அறிவிப்பு):** 1-tap notifications to all subscribers detailing the month's auction results, payable due amount, commission (காசுரு), and discount (தள்ளுபடி).
 
 ---
 
@@ -59,21 +60,28 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
 
 ---
 
-### 5. Member Directory & Multi-Scheme Enrollment
+### 5. Chit Group Management & In-Group Member Administration
+- **Configurable Chit Duration & Start Date:** Specify custom duration (10, 12, 20, 25 months) and exact scheme start date when creating a group, automatically calculating member capacity and base monthly installments.
+- **In-Group Add Member:** Quick `+ Add Member` button inside any chit group to enroll existing members or register and allot shares to new members directly.
+- **In-Group Delete Member:** Safe deletion of unprized member shares with automatic cleanup of unprized installment records and audit logging.
 - **Multi-Chit Registration:** Allows a single person to enroll in 1, 2, or all 3 chit schemes (1L, 2L, 3L) simultaneously.
-- **Streamlined Registration:** Simplified onboarding without rigid KYC/Aadhaar number requirements.
-- **Integrated Chit Switcher:** When recording payments for multi-scheme members, switch between member slots effortlessly in the collection modal.
 - **Search & Quick Actions:** Instant search by name, phone number, or town with 1-tap WhatsApp and call links.
 
 ---
 
-### 6. Bilingual Notification Suite (English & Tamil)
-Native SMS (`sms:`) and WhatsApp (`https://wa.me/`) templates with formatted currency and dates:
-1. **Chit Welcome / Enrollment Confirmation:** Sent upon joining a group with member number, pot value, and duration.
-2. **Monthly Due Notification (Message 2):** Breakdown of winner payout, discount, commission, dividend, and net due amount.
-3. **Payment Received Receipt (Message 3):** Immediate acknowledgment of payment with exact user date, remaining balance, and promised date.
-4. **Winner Announcement:** Congratulatory message strictly for the auction winner.
-5. **Prize Disbursement Receipt:** Detailed voucher for bulk or split prize payments.
+### 6. Diary-Accurate Bilingual Notification Suite (English & Tamil)
+Native SMS (`sms:`) and WhatsApp (`https://wa.me/`) templates adhering strictly to client Mr. Venkatesan's handwritten diary specifications:
+1. **Chit Welcome / Enrollment Confirmation:** Sent upon joining a group with member number, pot value, start date, and duration.
+2. **Winner Notice (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):** Sent directly to the person who took the chit with Scheme, Date, Month (X-வது மாதம்), Prize Amount (சீட்டு எடுத்த தொகை), and Discount (தள்ளுபடி).
+3. **Monthly Due Notification (மாதாந்திர தவணை அறிவிப்பு):** Sent to all subscribers detailing Scheme, Date, Month, Payable Amount (சீட்டுக்கு கட்ட வேண்டிய பணம்), Foreman Fee (காசுரு), and Discount (தள்ளுபடி).
+4. **Winner Prize Payout Receipt (சீட்டு எடுத்த தொகை வழங்கல் ரசீது):**
+   - *Case 1 (Full):* Amount given (முழுத் தொகை), Balance: NIL, கணக்கு முடிக்கப்பட்டது. ✓
+   - *Case 2 (First Partial):* Amount given now, remaining balance, next scheduled payout date.
+   - *Case 3 (Next Installment):* Previously received amount, amount given now, remaining balance (or NIL + கணக்கு முடிக்கப்பட்டது. ✓).
+5. **Monthly Payment Received Receipt (தவணை வரவு ரசீது):**
+   - *Case 1 (Full):* Amount paid now, remaining balance: NIL, கணக்கு முடிக்கப்பட்டது. ✓
+   - *Case 2 (First Partial):* Amount paid now, remaining balance to pay, next promised date.
+   - *Case 3 (After Partial Completion):* Previously paid amount, amount paid now, remaining balance: NIL, கணக்கு முடிக்கப்பட்டது. ✓
 
 ---
 

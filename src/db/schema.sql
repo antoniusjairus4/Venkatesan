@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS auctions (
     auction_date DATE NOT NULL,
     winning_member_id UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
     winning_share_id UUID NOT NULL REFERENCES member_shares(id) ON DELETE RESTRICT,
+    taken_by_member_id UUID REFERENCES members(id) ON DELETE RESTRICT, -- When someone takes another person's chit prize
     bid_discount_amount NUMERIC(12, 2) NOT NULL,       -- The auction discount (e.g. ₹15,000)
     organizer_commission NUMERIC(12, 2) NOT NULL,      -- Commission retained by Rajamanickam Chit Fund
     net_dividend_pool NUMERIC(12, 2) NOT NULL,         -- (bid_discount_amount - organizer_commission)

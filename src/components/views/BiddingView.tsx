@@ -66,6 +66,8 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
       string,
       {
         winningMemberId: string;
+        isTakenByAnother: boolean;
+        takenByMemberId: string;
         payoutAmount: string;
         notes: string;
         isSubmitting: boolean;
@@ -118,7 +120,14 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
       // Pre-fill form inputs with sensible defaults
       const initialInputs: Record<
         string,
-        { winningMemberId: string; payoutAmount: string; notes: string; isSubmitting: boolean }
+        {
+          winningMemberId: string;
+          isTakenByAnother: boolean;
+          takenByMemberId: string;
+          payoutAmount: string;
+          notes: string;
+          isSubmitting: boolean;
+        }
       > = {};
 
       res.schemes.forEach((s) => {
@@ -129,9 +138,16 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         // Default suggestion: 95% of pot or default discount
         const pot = Number(s.group.total_pot_value);
         const defaultPayout = String(Math.round(pot * 0.95));
+        const taker = s.auction?.taken_by_member_id || s.auction?.winning_member_id || defaultWinner;
+        const isAnother = Boolean(
+          s.auction?.taken_by_member_id &&
+          s.auction?.taken_by_member_id !== s.auction?.winning_member_id
+        );
 
         initialInputs[s.group.id] = {
           winningMemberId: s.auction ? s.auction.winning_member_id : defaultWinner,
+          isTakenByAnother: isAnother,
+          takenByMemberId: taker,
           payoutAmount: s.auction ? String(s.auction.payout_amount) : defaultPayout,
           notes: s.auction?.notes || '',
           isSubmitting: false,
@@ -183,6 +199,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         chit_group_id: scheme.group.id,
         month_number: selectedMonth,
         winning_member_id: inputs.winningMemberId,
+        taken_by_member_id: inputs.isTakenByAnother && inputs.takenByMemberId ? inputs.takenByMemberId : inputs.winningMemberId,
         winner_payout_amount: payoutNum,
         notes: inputs.notes.trim() || undefined,
       });
@@ -509,7 +526,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                       {/* 1. Winner Selection Dropdown */}
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          Select Bidding Winner (வெற்றியாளர்)
+                          Select Chit Member / Slot (சீட்டு உறுப்பினர்)
                         </label>
                         <select
                           value={currentInputs.winningMemberId}
@@ -519,12 +536,15 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                               [scheme.group.id]: {
                                 ...prev[scheme.group.id],
                                 winningMemberId: e.target.value,
+                                takenByMemberId: prev[scheme.group.id]?.isTakenByAnother
+                                  ? prev[scheme.group.id]?.takenByMemberId
+                                  : e.target.value,
                               },
                             }))
                           }
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"
                         >
-                          <option value="">-- Choose Winning Member --</option>
+                          <option value="">-- Choose Chit Member Slot --</option>
                           {scheme.subscribers.map((sub) => {
                             const wonMonth =
                               sub.won_in_other_month ||
@@ -549,11 +569,67 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </select>
                       </div>
 
+                      {/* 1b. Taking Another Person's Bidding Winning */}
+                      <div className="pt-0.5">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(currentInputs.isTakenByAnother)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormInputs((prev) => ({
+                                ...prev,
+                                [scheme.group.id]: {
+                                  ...prev[scheme.group.id],
+                                  isTakenByAnother: checked,
+                                  takenByMemberId: checked
+                                    ? (prev[scheme.group.id].takenByMemberId || currentInputs.winningMemberId)
+                                    : currentInputs.winningMemberId,
+                                },
+                              }));
+                            }}
+                            className="w-4 h-4 text-forest-700 rounded border-slate-300 focus:ring-forest-600"
+                          />
+                          <span>Chit taken by another person? (வேறு நபர் சீட்டு எடுக்கிறாரா?)</span>
+                        </label>
+
+                        {currentInputs.isTakenByAnother && (
+                          <div className="mt-2 p-3 bg-amber-50/90 rounded-xl border border-amber-200/90 space-y-1.5 animate-in fade-in-50 duration-150">
+                            <label className="block text-[10px] font-bold text-amber-950 uppercase tracking-wider">
+                              Person Who Took the Chit (சீட்டு எடுத்தவர்)
+                            </label>
+                            <select
+                              value={currentInputs.takenByMemberId}
+                              onChange={(e) =>
+                                setFormInputs((prev) => ({
+                                  ...prev,
+                                  [scheme.group.id]: {
+                                    ...prev[scheme.group.id],
+                                    takenByMemberId: e.target.value,
+                                  },
+                                }))
+                              }
+                              className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-forest-700"
+                            >
+                              <option value="">-- Choose Person Who Took the Chit --</option>
+                              {scheme.subscribers.map((sub) => (
+                                <option key={sub.share_id} value={sub.member_id}>
+                                  {sub.member_name} ({sub.member_phone})
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[10px] text-amber-900 font-medium">
+                              ✓ Notice: The winner payout notification & prize installments will be sent directly to this person.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       {/* 2. Winner Payout Amount Input */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                            Winner Prize Amount (வெற்றித் தொகை)
+                            Chit Prize Amount (சீட்டு எடுத்த தொகை)
                           </label>
                           <span className="text-[10px] font-bold text-slate-400">
                             Max: {formatINR(pot)}
@@ -692,7 +768,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           </div>
                           <div>
                             <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                              Prized Bidding Winner
+                              Chit Winner / சீட்டு எடுத்தவர்
                             </span>
                             <strong className="text-sm font-extrabold text-slate-900 block">
                               {scheme.auction?.winning_member_name}
@@ -711,6 +787,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+
+                      {scheme.auction?.taken_by_member_name && scheme.auction?.taken_by_member_name !== scheme.auction?.winning_member_name && (
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center justify-between -mt-2">
+                          <span className="text-[10px] font-bold text-amber-900 uppercase">Chit Taken By (சீட்டு எடுத்தவர்):</span>
+                          <span className="font-extrabold text-amber-950">{scheme.auction.taken_by_member_name} ({scheme.auction.taken_by_member_phone})</span>
+                        </div>
+                      )}
 
                       {/* 4 Metrics Grid */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
@@ -903,108 +986,133 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
             </div>
 
             {/* Recipient Details */}
-            <div className="p-3 rounded-xl bg-forest-50 border border-forest-100 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-forest-700 font-bold block uppercase">
-                  Prized Winning Bidder
-                </span>
-                <strong className="text-sm font-extrabold text-forest-950">
-                  {winnerModalScheme.auction.winning_member_name}
-                </strong>
-                <span className="text-xs text-forest-800 block">
-                  Ph: {winnerModalScheme.auction.winning_member_phone}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-forest-700 font-bold block uppercase">
-                  Winning Payout
-                </span>
-                <strong className="text-base font-black text-forest-900">
-                  {formatINR(winnerModalScheme.auction.payout_amount)}
-                </strong>
-              </div>
-            </div>
+            {(() => {
+              const recipientName =
+                winnerModalScheme.auction.taken_by_member_name ||
+                winnerModalScheme.auction.winning_member_name;
+              const recipientPhone =
+                winnerModalScheme.auction.taken_by_member_phone ||
+                winnerModalScheme.auction.winning_member_phone;
+              const recipientWa =
+                winnerModalScheme.auction.taken_by_member_whatsapp ||
+                winnerModalScheme.auction.winning_member_whatsapp ||
+                recipientPhone;
+              const isDifferentTaker = Boolean(
+                winnerModalScheme.auction.taken_by_member_name &&
+                  winnerModalScheme.auction.taken_by_member_name !==
+                    winnerModalScheme.auction.winning_member_name
+              );
 
-            {/* Message Preview Box */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                <span>Message Text (Bilingual Tamil &amp; English):</span>
-                <button
-                  onClick={() =>
-                    handleCopy(
-                      getBiddingWinnerText({
-                        winnerName: winnerModalScheme.auction!.winning_member_name,
+              return (
+                <>
+                  <div className="p-3 rounded-xl bg-forest-50 border border-forest-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-forest-700 font-bold block uppercase">
+                        {isDifferentTaker ? 'Chit Taken By (செய்தி பெறுநர்)' : 'Chit Winner / சீட்டு எடுத்தவர்'}
+                      </span>
+                      <strong className="text-sm font-extrabold text-forest-950">
+                        {recipientName}
+                      </strong>
+                      <span className="text-xs text-forest-800 block">
+                        Ph: {recipientPhone}
+                      </span>
+                      {isDifferentTaker && (
+                        <span className="text-[10px] text-amber-800 font-semibold block mt-0.5">
+                          Chit Slot Owner: Member #{winnerModalScheme.auction.share_ticket_number} {winnerModalScheme.auction.winning_member_name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-forest-700 font-bold block uppercase">
+                        Chit Prize (சீட்டு எடுத்த தொகை)
+                      </span>
+                      <strong className="text-base font-black text-forest-900">
+                        {formatINR(winnerModalScheme.auction.payout_amount)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Message Preview Box */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                      <span>Message Text (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):</span>
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            getBiddingWinnerText({
+                              winnerName: recipientName,
+                              groupName: winnerModalScheme.group.name,
+                              monthNumber: selectedMonth,
+                              payoutAmount: winnerModalScheme.auction!.payout_amount,
+                              tasiruAmount: winnerModalScheme.auction!.bid_discount_amount,
+                            }),
+                            'winner-text'
+                          )
+                        }
+                        className="flex items-center gap-1 text-[11px] text-forest-700 hover:text-forest-900 font-bold cursor-pointer"
+                      >
+                        {copiedText === 'winner-text' ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Message</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <pre className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">
+                      {getBiddingWinnerText({
+                        winnerName: recipientName,
                         groupName: winnerModalScheme.group.name,
                         monthNumber: selectedMonth,
-                        payoutAmount: winnerModalScheme.auction!.payout_amount,
-                        tasiruAmount: winnerModalScheme.auction!.bid_discount_amount,
-                      }),
-                      'winner-text'
-                    )
-                  }
-                  className="flex items-center gap-1 text-[11px] text-forest-700 hover:text-forest-900 font-bold cursor-pointer"
-                >
-                  {copiedText === 'winner-text' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Message</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                        payoutAmount: winnerModalScheme.auction.payout_amount,
+                        tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                      })}
+                    </pre>
+                  </div>
 
-              <pre className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">
-                {getBiddingWinnerText({
-                  winnerName: winnerModalScheme.auction.winning_member_name,
-                  groupName: winnerModalScheme.group.name,
-                  monthNumber: selectedMonth,
-                  payoutAmount: winnerModalScheme.auction.payout_amount,
-                  tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
-                })}
-              </pre>
-            </div>
+                  {/* 1-Tap Trigger Buttons */}
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <a
+                      href={createBiddingWinnerSmsUrl({
+                        phone: recipientPhone,
+                        winnerName: recipientName,
+                        groupName: winnerModalScheme.group.name,
+                        monthNumber: selectedMonth,
+                        payoutAmount: winnerModalScheme.auction.payout_amount,
+                        tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                      })}
+                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs shadow-md transition-all text-center cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Send Native SMS</span>
+                    </a>
 
-            {/* 1-Tap Trigger Buttons */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <a
-                href={createBiddingWinnerSmsUrl({
-                  phone: winnerModalScheme.auction.winning_member_phone,
-                  winnerName: winnerModalScheme.auction.winning_member_name,
-                  groupName: winnerModalScheme.group.name,
-                  monthNumber: selectedMonth,
-                  payoutAmount: winnerModalScheme.auction.payout_amount,
-                  tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
-                })}
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs shadow-md transition-all text-center cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>Send Native SMS</span>
-              </a>
-
-              <a
-                href={createBiddingWinnerWhatsAppUrl({
-                  phone:
-                    winnerModalScheme.auction.winning_member_whatsapp ||
-                    winnerModalScheme.auction.winning_member_phone,
-                  winnerName: winnerModalScheme.auction.winning_member_name,
-                  groupName: winnerModalScheme.group.name,
-                  monthNumber: selectedMonth,
-                  payoutAmount: winnerModalScheme.auction.payout_amount,
-                  tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
-                })}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all text-center cursor-pointer"
-              >
-                <Phone className="w-4 h-4" />
-                <span>Send WhatsApp</span>
-              </a>
-            </div>
+                    <a
+                      href={createBiddingWinnerWhatsAppUrl({
+                        phone: recipientWa,
+                        winnerName: recipientName,
+                        groupName: winnerModalScheme.group.name,
+                        monthNumber: selectedMonth,
+                        payoutAmount: winnerModalScheme.auction.payout_amount,
+                        tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                      })}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all text-center cursor-pointer"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>Send WhatsApp</span>
+                    </a>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

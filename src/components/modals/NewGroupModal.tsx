@@ -114,15 +114,44 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Duration & Scheme Size
-              </label>
-              <div className="w-full px-3.5 py-2.5 bg-slate-100/90 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center justify-between">
-                <span>20 Months</span>
-                <span className="text-slate-300">&bull;</span>
-                <span className="text-forest-800">20 Members</span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  Duration (Months)
+                </label>
+                <span className="text-[10px] font-bold text-forest-700">
+                  {monthsNum} Members
+                </span>
               </div>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={months}
+                onChange={(e) => setMonths(e.target.value)}
+                placeholder="20"
+                required
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+              />
             </div>
+          </div>
+
+          {/* Quick Duration Presets */}
+          <div className="flex items-center gap-1.5 -mt-1">
+            <span className="text-[10px] font-bold text-slate-400">Presets:</span>
+            {['10', '12', '20', '25'].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMonths(m)}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  months === m
+                    ? 'bg-forest-700 text-white border-forest-700 shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                {m}M
+              </button>
+            ))}
           </div>
 
           {/* Computed Base summary */}
@@ -133,15 +162,20 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
 
           <div>
             <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-              Start Date
+              When Chit Starts / தொடங்கும் தேதி (Start Date)
             </label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700 font-medium"
             />
+            {startDate && (
+              <p className="text-[10px] text-forest-700 mt-1 font-semibold">
+                ✓ Scheme commences on {new Date(startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} for {monthsNum} months ({monthsNum} members)
+              </p>
+            )}
           </div>
 
           <div>

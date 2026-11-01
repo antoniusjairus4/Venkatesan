@@ -92,3 +92,4 @@ if (res5.perMemberDue !== 4175) throw new Error(`Per member due should be 4175, 
 console.log('✓ Test 5 Passed: Custom adjusted agent pay works accurately!');
 
 console.log('\nALL 5 AGENT PAY MATH TESTS COMPLETED SUCCESSFULLY! 🎉');
+

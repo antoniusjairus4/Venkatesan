@@ -242,7 +242,7 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
                       >
                         <Ticket className="w-3.5 h-3.5 text-forest-700" />
                         <span>
-                          {s.groupName}: {s.ticketCount} {s.ticketCount === 1 ? 'Ticket' : 'Tickets'}
+                          {s.groupName}: {s.ticketCount} {s.ticketCount === 1 ? 'Member' : 'Members'}
                         </span>
                         <span className="text-forest-600 font-normal">
                           ({formatINR(s.baseAmount)}/mo)
@@ -449,7 +449,7 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
                             <div className="flex items-center gap-2">
                               <span className="text-[11px] font-bold text-forest-900 flex items-center gap-1">
                                 <Ticket className="w-3.5 h-3.5 text-forest-700" />
-                                Tickets:
+                                Members:
                               </span>
 
                               {/* Stepper */}
@@ -531,7 +531,7 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
                       Total Monthly Commitment ({activeEnrolledList.length} Schemes)
                     </span>
                     <span className="text-xs text-forest-200">
-                      {totalTicketsAllotted} {totalTicketsAllotted === 1 ? 'Ticket' : 'Tickets'} Total
+                      {totalTicketsAllotted} {totalTicketsAllotted === 1 ? 'Member' : 'Members'} Total
                     </span>
                   </div>
                   <div className="text-right">

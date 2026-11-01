@@ -53,7 +53,7 @@ Chit Scheme Welcome & Enrollment Confirmation
 
 • Date / அனுப்பிய தேதி: ${sDate}
 • Scheme / திட்டம்: ${params.groupName}
-${params.ticketNumber ? `• Ticket No / டிக்கெட் எண்: #${params.ticketNumber}\n` : ''}• Total Pot Value / மொத்த தொகை: ₹${params.potValue.toLocaleString('en-IN')}
+${params.ticketNumber ? `• Member No / உறுப்பினர் எண்: #${params.ticketNumber}\n` : ''}• Total Pot Value / மொத்த தொகை: ₹${params.potValue.toLocaleString('en-IN')}
 • Duration / கால அளவு: 20 Months (20 மாதங்கள்)
 • Base Monthly Installment / மாதாந்திர தவணை: ₹${params.baseAmount.toLocaleString('en-IN')}
 • Commencement / தொடக்க தேதி: ${params.startDate}
@@ -84,7 +84,7 @@ export function createMultiEnrollmentSmsUrl(params: {
   const schemeLines = params.schemes
     .map(
       (s) =>
-        `• ${s.groupName} (${s.ticketCount} ${s.ticketCount === 1 ? 'Ticket' : 'Tickets'}): தவணை ₹${s.baseAmount.toLocaleString('en-IN')}/mo`
+        `• ${s.groupName} (${s.ticketCount} ${s.ticketCount === 1 ? 'Member' : 'Members'}): தவணை ₹${s.baseAmount.toLocaleString('en-IN')}/mo`
     )
     .join('\n');
 

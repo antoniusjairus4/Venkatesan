@@ -130,7 +130,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installmentId || payAmt <= 0) {
-      setError('Please select a valid chit scheme/ticket and enter an amount.');
+      setError('Please select a valid chit scheme/member and enter an amount.');
       return;
     }
 
@@ -217,7 +217,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                 ₹{receiptData.amountPaid.toLocaleString('en-IN')} Received
               </h4>
               <p className="text-xs text-slate-600 mt-1 font-medium">
-                {receiptData.memberName} &bull; {receiptData.groupName} (Ticket #{receiptData.ticketNumber}) &bull; Month {receiptData.monthNumber}
+                {receiptData.memberName} &bull; {receiptData.groupName} (Member #{receiptData.ticketNumber}) &bull; Month {receiptData.monthNumber}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                 <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -368,20 +368,20 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </div>
             )}
 
-            {/* Multi-Chit Scheme & Ticket Selector */}
+            {/* Multi-Chit Scheme & Member Selector */}
             {memberChits.length > 1 ? (
               <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
                     <Layers className="w-4 h-4 text-amber-700" />
-                    <span>Select Chit Scheme & Ticket</span>
+                    <span>Select Chit Scheme & Member</span>
                   </div>
                   <span className="text-[10px] text-amber-800 font-extrabold bg-amber-100/90 px-2.5 py-0.5 rounded-full border border-amber-300">
                     {memberChits.length} Chits Enrolled
                   </span>
                 </div>
                 <p className="text-[11px] text-amber-900/80">
-                  Select which chit group and ticket this payment belongs to:
+                  Select which chit group and member slot this payment belongs to:
                 </p>
 
                 <div className="grid grid-cols-1 gap-2 pt-0.5">
@@ -420,7 +420,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                                 {item.group_name}
                               </span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-forest-50 text-forest-700 border border-forest-200">
-                                Ticket #{item.share_ticket_number}
+                                Member #{item.share_ticket_number}
                               </span>
                               <span className="text-[10px] text-slate-400">
                                 Month {item.month_number}
@@ -452,14 +452,14 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div className="p-3 rounded-2xl bg-forest-50/70 border border-forest-200 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-forest-700 block">
-                    Enrolled Scheme & Ticket
+                    Enrolled Scheme & Member
                   </span>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs font-bold text-slate-900">
                       {currentInst.group_name}
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-forest-700 border border-forest-200">
-                      Ticket #{currentInst.share_ticket_number}
+                      Member #{currentInst.share_ticket_number}
                     </span>
                     <span className="text-[10px] text-slate-500">
                       Month {currentInst.month_number}

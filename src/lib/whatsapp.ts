@@ -85,7 +85,7 @@ We got your payment with thanks!
 
 • *Payment Date / தேதி:* ${pDate}
 • *Scheme / திட்டம்:* ${params.groupName}
-${params.ticketNumber ? `• *Ticket / டிக்கெட்:* #${params.ticketNumber}\n` : ''}• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
+${params.ticketNumber ? `• *Member No / உறுப்பினர் எண்:* #${params.ticketNumber}\n` : ''}• *Month / மாதம்:* Month ${params.monthNumber} of 20 (மாதம் ${params.monthNumber})
 • *Amount Paid / செலுத்திய தொகை:* ${formatINR(params.amountPaid)}
 ${params.installmentDue ? `• *Month Due / இந்த மாத தவணை:* ${formatINR(params.installmentDue)}\n` : ''}${params.thalubadi ? `• *Month Thalubadi / தள்ளுபடி:* ${formatINR(params.thalubadi)}\n` : ''}${params.kasiru ? `• *Month Kasiru / காசீரு:* ${formatINR(params.kasiru)}\n` : ''}• *Status / நிலை:* ${params.status === 'PAID' || params.remainingBalance <= 0 ? 'FULLY PAID (முழுமையாக செலுத்தப்பட்டது ✓)' : 'PARTIAL (பாக்கி: ' + formatINR(params.remainingBalance) + ')'}
 ${params.remainingBalance > 0 && params.expectedPaymentDate ? `• *Promised Next Payment Date / அடுத்த தவணை தேதி:* ${params.expectedPaymentDate}\n` : ''}${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• *Receipt / ரசீது எண்:* ${params.receiptNumber}\n` : ''}
@@ -125,7 +125,7 @@ export function createWhatsAppEnrollmentUrl(params: {
 
 • *Date / அனுப்பிய தேதி:* ${sDate}
 • *Scheme / திட்டம்:* ${params.groupName}
-${params.ticketNumber ? `• *Ticket No / டிக்கெட் எண்:* #${params.ticketNumber}\n` : ''}• *Total Pot Value / மொத்த தொகை:* ${formatINR(params.potValue)}
+${params.ticketNumber ? `• *Member No / உறுப்பினர் எண்:* #${params.ticketNumber}\n` : ''}• *Total Pot Value / மொத்த தொகை:* ${formatINR(params.potValue)}
 • *Duration / கால அளவு:* 20 Months (20 மாதங்கள்)
 • *Base Monthly Installment / மாதாந்திர தவணை:* ${formatINR(params.baseAmount)}
 • *Commencement / தொடக்க தேதி:* ${params.startDate}

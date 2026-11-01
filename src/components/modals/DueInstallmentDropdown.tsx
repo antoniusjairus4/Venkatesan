@@ -161,7 +161,7 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                 <span>Month {currentInst.month_number}</span>
                 <span>&bull;</span>
                 <span className="font-semibold text-slate-700">
-                  Ticket #{currentInst.share_ticket_number}
+                  Member #{currentInst.share_ticket_number}
                 </span>
               </p>
             </div>
@@ -212,7 +212,7 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search member, ticket #, or scheme..."
+                placeholder="Search member, member #, or scheme..."
                 className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-forest-600 focus:ring-1 focus:ring-forest-600/30 transition-all"
               />
               {searchQuery && (
@@ -322,7 +322,7 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Month {inst.month_number} &bull; Ticket #{inst.share_ticket_number}
+                          Month {inst.month_number} &bull; Member #{inst.share_ticket_number}
                         </p>
                       </div>
                     </div>
@@ -356,7 +356,7 @@ export const DueInstallmentDropdown: React.FC<DueInstallmentDropdownProps> = ({
                 </div>
                 <p className="text-xs font-semibold text-slate-700">No installments found</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Try searching with a different name, scheme, or ticket number.
+                  Try searching with a different name, scheme, or member number.
                 </p>
                 {(searchQuery || filterTab !== 'all') && (
                   <button

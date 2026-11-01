@@ -304,7 +304,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search by member name, phone, ticket #, or town..."
+                placeholder="Search by member name, phone, member #, or town..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-forest-500/20 focus:border-forest-500 transition-all placeholder:text-slate-400"
@@ -377,7 +377,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               {searchQuery
-                ? `No subscribers match your search "${searchQuery}". Try a different name or ticket number.`
+                ? `No subscribers match your search "${searchQuery}". Try a different name or member number.`
                 : 'No members are enrolled in this chit group yet.'}
             </p>
           </div>
@@ -430,26 +430,26 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Tickets & Shares Held in THIS Group */}
+                    {/* Members & Shares Held in THIS Group */}
                     <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-3 space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                           <Ticket className="w-3 h-3 text-forest-600" />
-                          Tickets in {selectedGroup.name}
+                          Members in {selectedGroup.name}
                         </span>
                         <span className="text-xs font-extrabold text-forest-900">
                           {sub.shares_count} {sub.shares_count === 1 ? 'Share' : 'Shares'}
                         </span>
                       </div>
 
-                      {/* Ticket Number Badges */}
+                      {/* Member Number Badges */}
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {sub.ticket_numbers?.map((num) => (
                           <span
                             key={num}
                             className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-forest-100 text-forest-900 border border-forest-200/80 shadow-2xs"
                           >
-                            Ticket #{num}
+                            Member #{num}
                           </span>
                         ))}
                       </div>
@@ -681,7 +681,7 @@ export const ChitGroupsView: React.FC<ChitGroupsViewProps> = ({
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {viewTab === 'ACTIVE'
-              ? 'Click on any chit group card below to view its enrolled subscribers and ticket details'
+              ? 'Click on any chit group card below to view its enrolled subscribers and member details'
               : 'Browse completed chit schemes, view historical closure snapshots, and export audit reports'}
           </p>
         </div>

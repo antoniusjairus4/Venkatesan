@@ -698,7 +698,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                               {scheme.auction?.winning_member_name}
                             </strong>
                             <span className="text-[11px] text-slate-500">
-                              Ticket #{scheme.auction?.share_ticket_number} &bull; {scheme.auction?.winning_member_phone}
+                              Member #{scheme.auction?.share_ticket_number} &bull; {scheme.auction?.winning_member_phone}
                             </span>
                           </div>
                         </div>

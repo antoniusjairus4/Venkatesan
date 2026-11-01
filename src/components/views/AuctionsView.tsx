@@ -94,7 +94,7 @@ export const AuctionsView: React.FC<AuctionsViewProps> = ({ onRecordAuction }) =
                   {/* Winning Bidder Pill */}
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-forest-50 border border-forest-200 text-xs font-bold text-forest-800 self-start sm:self-center">
                     <Award className="w-4 h-4 text-forest-700" />
-                    <span>Prized: {a.winning_member_name} (Ticket #{a.share_ticket_number})</span>
+                    <span>Prized: {a.winning_member_name} (Member #{a.share_ticket_number})</span>
                   </div>
                 </div>
 

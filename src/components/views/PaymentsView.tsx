@@ -423,7 +423,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search member, phone, ticket..."
+            placeholder="Search member, phone, member #..."
             className="w-full pl-9 pr-4 py-2 bg-white/90 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-forest-700"
           />
         </div>

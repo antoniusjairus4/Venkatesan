@@ -62,14 +62,14 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
 ### 5. Member Directory & Multi-Scheme Enrollment
 - **Multi-Chit Registration:** Allows a single person to enroll in 1, 2, or all 3 chit schemes (1L, 2L, 3L) simultaneously.
 - **Streamlined Registration:** Simplified onboarding without rigid KYC/Aadhaar number requirements.
-- **Integrated Chit Switcher:** When recording payments for multi-scheme members, switch between tickets effortlessly in the collection modal.
+- **Integrated Chit Switcher:** When recording payments for multi-scheme members, switch between member slots effortlessly in the collection modal.
 - **Search & Quick Actions:** Instant search by name, phone number, or town with 1-tap WhatsApp and call links.
 
 ---
 
 ### 6. Bilingual Notification Suite (English & Tamil)
 Native SMS (`sms:`) and WhatsApp (`https://wa.me/`) templates with formatted currency and dates:
-1. **Chit Welcome / Enrollment Confirmation:** Sent upon joining a group with ticket number, pot value, and duration.
+1. **Chit Welcome / Enrollment Confirmation:** Sent upon joining a group with member number, pot value, and duration.
 2. **Monthly Due Notification (Message 2):** Breakdown of winner payout, discount, commission, dividend, and net due amount.
 3. **Payment Received Receipt (Message 3):** Immediate acknowledgment of payment with exact user date, remaining balance, and promised date.
 4. **Winner Announcement:** Congratulatory message strictly for the auction winner.
@@ -212,7 +212,7 @@ To run automated checks, database validations, and Puppeteer UI tests:
 
 - Designed for **Single Admin Mode (Venkatesan)** with client-side authenticated state.
 - Read-only historical data safeguarding: Archived chit groups are locked from active payment mutations.
-- Strict input validation on payment amounts, bidding thresholds, and ticket assignments.
+- Strict input validation on payment amounts, bidding thresholds, and member share assignments.
 
 ---
 

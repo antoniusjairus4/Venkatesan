@@ -114,7 +114,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
       { content: 'Base Monthly Due', styles: { fontStyle: 'bold' as const } },
       formatCurrency(baseMonthly),
       { content: 'Subscribers / Shares', styles: { fontStyle: 'bold' as const } },
-      `${metrics.member_count} Members (${group.total_shares || 20} Tickets)`,
+      `${metrics.member_count} Members (${group.total_shares || 20} Shares)`,
     ],
     [
       { content: 'Total Inst. Cleared', styles: { fontStyle: 'bold' as const } },
@@ -153,7 +153,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
   currentY = (doc as any).lastAutoTable.finalY + 8;
 
   // ---------------------------------------------------------------------------
-  // Section 2: Member Summary & Ticket Allocations
+  // Section 2: Member Summary & Allocation Details
   // ---------------------------------------------------------------------------
   doc.setTextColor(PRIMARY[0], PRIMARY[1], PRIMARY[2]);
   doc.setFont('helvetica', 'bold');
@@ -173,7 +173,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
   ]);
 
   autoTable(doc, {
-    head: [['Ticket', 'Member Name', 'Phone', 'Town / Address', 'Total Paid', 'Discipline', 'Status']],
+    head: [['Member #', 'Member Name', 'Phone', 'Town / Address', 'Total Paid', 'Discipline', 'Status']],
     body: memberRows,
     startY: currentY,
     margin: { left: margin, right: margin },
@@ -285,7 +285,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
     ]);
 
     autoTable(doc, {
-      head: [['Cycle', 'Ticket', 'Member Name', 'Phone', 'Amount', 'Date Paid', 'Audit Notes']],
+      head: [['Cycle', 'Member #', 'Member Name', 'Phone', 'Amount', 'Date Paid', 'Audit Notes']],
       body: lateRows,
       startY: currentY,
       margin: { left: margin, right: margin },
@@ -402,7 +402,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
     ['Chit Scheme Name', group.name],
     ['Total Pot Value (₹)', Number(group.total_pot_value)],
     ['Duration (Months)', Number(group.total_months)],
-    ['Total Shares / Tickets', Number(group.total_shares || 20)],
+    ['Total Members / Shares', Number(group.total_shares || 20)],
     ['Base Monthly Installment (₹)', Number(group.installment_base_amount)],
     ['Start Date', formatDate(metrics.start_date)],
     ['End Date', formatDate(metrics.end_date)],
@@ -424,7 +424,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
   // Sheet 2: Members
   // --------------------------------------------------
   const membersData = members.map((m) => ({
-    'Ticket Number': m.share_ticket_number,
+    'Member Number': m.share_ticket_number,
     'Member Name': m.member_name,
     'Phone Number': m.phone,
     'Address / Town': m.address || 'Salem, TN',
@@ -452,7 +452,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
   const paymentsData = installments.map((i) => ({
     'Installment ID': i.id,
     'Month Number': i.month_number,
-    'Ticket Number': i.share_ticket_number,
+    'Member Number': i.share_ticket_number,
     'Member Name': i.member_name,
     'Phone Number': i.member_phone,
     'Base Amount (₹)': Number(i.base_amount),
@@ -537,7 +537,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
   // --------------------------------------------------
   const lateData = late_payments.map((l) => ({
     'Month Number': l.month_number,
-    'Ticket Number': l.share_ticket_number,
+    'Member Number': l.share_ticket_number,
     'Member Name': l.member_name,
     'Phone Number': l.member_phone,
     'Amount Paid (₹)': Number(l.paid_amount),

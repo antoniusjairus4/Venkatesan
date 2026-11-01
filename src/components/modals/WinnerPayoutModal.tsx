@@ -185,7 +185,7 @@ export const WinnerPayoutModal: React.FC<WinnerPayoutModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-forest-200 mt-0.5">
-                {auction.winning_member_name} &bull; Ticket #{auction.share_ticket_number} &bull; {scheme.group.name} (Month {selectedMonth} of 20)
+                {auction.winning_member_name} &bull; Member #{auction.share_ticket_number} &bull; {scheme.group.name} (Month {selectedMonth} of 20)
               </p>
             </div>
           </div>

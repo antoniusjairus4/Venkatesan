@@ -256,3 +256,4 @@ if (!bannedCheck1 && !bannedCheck2 && !bannedCheck3) {
 } else {
   process.exit(1);
 }
+

@@ -19,14 +19,13 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
 - **Multi-Scheme Grid (1L, 2L, 3L):** Simultaneous management of ₹1,00,000, ₹2,00,000, and ₹3,00,000 pots.
 - **Strict Winner Eligibility Enforcement:** Enforces the rule that only **one member can take the chit per month**, and a subscriber who has already won in a previous month is automatically locked and cannot bid again.
 - **Proxy Chit Taker Support (வேறு நபர் சீட்டு எடுத்தல்):** If another member takes the auction winning on behalf of a subscriber slot, the organizer can designate the taker. Winner announcements and prize payout receipts are routed directly to the actual taker's mobile number.
-- **Automated Tamil Nadu Chit Fund Accounting:**
-  - Calculates **Thalubadi (தள்ளுபடி / Discount)**: `Total Pot - Winner Prize Amount`.
-  - Calculates **Kasiru (காசுரு / Foreman Commission)**: Fixed `5% of Gross Chit Value`.
-  - Calculates **Net Dividend Pool (லாப ஈவுத்தொகை)**: `Thalubadi - Kasiru`.
-  - Calculates **Monthly Dividend per Subscriber**: Distributed equally across all members.
-  - Calculates **Monthly Installment Due per Member**: Automatically reduced from base amount: `Base Monthly Installment - Dividend`.
+- **Dedicated Agent's Pay (ஏஜென்ட் கமிஷன் / Foreman Fee):**
+  - Pre-filled with client-specific base rates: **1L: ₹3,000**, **2L: ₹6,000**, **3L: ₹9,000**, **5L: ₹15,000** (₹3,000 per 1 Lakh).
+  - Organizer can increase or decrease this fee freely per auction.
+  - **Zero Thalubadi Impact:** Agent's pay is **NOT** deducted from Thalubadi (`Thalubadi = Total Pot - Winner Prize Amount` remains untouched).
+  - **Shared Across All Members:** The total monthly pool `(Winner Prize Amount + Agent's Pay)` is split equally among all members: `Per Member Due = (Winner Prize + Agent's Pay) ÷ Total Members`.
 - **Targeted Winner Announcement (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):** 1-tap SMS & WhatsApp notification sent strictly to the chit taker with prize payout and discount details.
-- **Member Due Announcements (மாதாந்திர தவணை அறிவிப்பு):** 1-tap notifications to all subscribers detailing the month's auction results, payable due amount, commission (காசுரு), and discount (தள்ளுபடி).
+- **Member Due Announcements (மாதாந்திர தவணை அறிவிப்பு):** 1-tap notifications to all subscribers detailing Scheme, Date, Month, Payable Amount, Foreman Fee (`காசுரு`), and Discount (`தள்ளுபடி`).
 
 ---
 
@@ -92,21 +91,26 @@ Standard **₹1,00,000 Chit Scheme** (20 members, 20 months):
 $$\text{Gross Chit Value} = \text{₹1,00,000}$$
 $$\text{Max Monthly Base Contribution} = \frac{\text{₹1,00,000}}{20\text{ members}} = \text{₹5,000}$$
 
-### Scenario: Winner bids at ₹75,000 Prize (Thalubadi = ₹25,000)
+### Real-World Example (Month 1): ₹1,00,000 Scheme (20 Members)
 
-1. **Calculate Payout (Winner Amount):**
-   $$\text{Winner Prize Amount} = \text{₹75,000}$$
-   $$\text{Thalubadi (Discount)} = \text{₹1,00,000} - \text{₹75,000} = \mathbf{₹25,000}$$
+$$\text{Gross Chit Value} = \text{₹1,00,000}$$
+$$\text{Winner Prize Amount (Bid Payout)} = \mathbf{₹80,000}$$
+$$\text{Agent's Pay (Client Configurable Fee)} = \mathbf{₹3,000}$$
 
-2. **Extract Kasiru (Foreman's Commission @ 5%):**
-   $$\text{Kasiru} = 5\% \times \text{₹1,00,000} = \mathbf{₹5,000}$$
+1. **Calculate Thalubadi (தள்ளுபடி / Thasiru):**
+   $$\text{Thalubadi} = \text{₹1,00,000} - \text{₹80,000} = \mathbf{₹20,000}$$
+   *(Note: Agent's pay is NOT subtracted from Thalubadi; Thalubadi strictly remains ₹20,000 and not ₹17,000).*
 
-3. **Distribute Dividend to Members:**
-   $$\text{Net Dividend Pool} = \text{₹25,000 (Thalubadi)} - \text{₹5,000 (Kasiru)} = \text{₹20,000}$$
-   $$\text{Dividend per Member} = \frac{\text{₹20,000}}{20\text{ members}} = \mathbf{₹1,000}$$
+2. **Calculate Total Monthly Collection Pool:**
+   $$\text{Total Pool} = \text{Winner Prize} + \text{Agent's Pay} = \text{₹80,000} + \text{₹3,000} = \mathbf{₹83,000}$$
 
-4. **Calculate Monthly Installment Payable:**
-   $$\text{Installment per Member} = \text{₹5,000} - \text{₹1,00,0} = \frac{\text{₹75,000 (Winner Prize)} + \text{₹5,000 (Kasiru)}}{20} = \mathbf{₹4,000}$$
+3. **Calculate Monthly Installment per Member (சீட்டுக்கு கட்ட வேண்டிய பணம்):**
+   $$\text{Installment per Member} = \frac{\text{₹80,000} + \text{₹3,000}}{20\text{ members}} = \frac{\text{₹83,000}}{20} = \mathbf{₹4,150}$$
+
+4. **Foreman & Winner Allocation:**
+   - ₹80,000 is disbursed to the winner.
+   - ₹3,000 is retained as Agent's Pay (`காசுரு`).
+   - All 20 members share the monthly cost equally at ₹4,150 each.
 
 ---
 

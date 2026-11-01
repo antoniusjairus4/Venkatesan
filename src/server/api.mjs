@@ -1243,6 +1243,8 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
                 winning_share_id: auction.winning_share_id,
                 payout_amount: Number(auction.payout_amount),
                 bid_discount_amount: Number(auction.bid_discount_amount),
+                organizer_commission: Number(auction.agent_pay || auction.organizer_commission || Math.round((Number(group.total_pot_value) / 100000) * 3000)),
+                agent_pay: Number(auction.agent_pay || auction.organizer_commission || Math.round((Number(group.total_pot_value) / 100000) * 3000)),
                 dividend_per_share: Number(auction.dividend_per_share),
                 net_installment_due: Number(auction.net_installment_due),
                 payout_summary: payoutSummary,
@@ -1303,6 +1305,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
       winning_member_id,
       taken_by_member_id,
       winner_payout_amount,
+      agent_pay,
       auction_date,
       notes,
     } = req.body;
@@ -1325,6 +1328,11 @@ apiRouter.post('/bidding/record', async (req, res) => {
       });
     }
 
+    const defaultAgentPay = Math.round((totalPot / 100000) * 3000);
+    const agentPayNum = agent_pay !== undefined && agent_pay !== null && !isNaN(Number(agent_pay))
+      ? Math.max(0, Number(agent_pay))
+      : defaultAgentPay;
+
     const takerId = taken_by_member_id || winning_member_id;
 
     // STRICT 1-WINNER RULE:
@@ -1342,18 +1350,21 @@ apiRouter.post('/bidding/record', async (req, res) => {
       });
     }
 
-    // Client's exact Tamil Nadu Chit Fund Math:
-    // 1. Thalubadi (Discount) = Gross Pot Value - Winner Payout (e.g. 100,000 - 75,000 = 25,000)
+    // Client's exact Tamil Nadu Chit Fund Math with Agent's Pay:
+    // 1. Thalubadi (Discount / Thasiru) = Gross Pot Value - Winner Payout (e.g. 100,000 - 80,000 = 20,000)
+    // "thallubadi will remain 20000 and not 17000 ... this will not be reflected in the tharisu or thalubadi"
     const bidDiscount = totalPot - payoutAmount;
-    // 2. Kasiru (Foreman Commission) = 5% of Gross Pot (e.g. 100,000 * 5% = 5,000)
-    const organizerCommission = Math.round((totalPot * 5) / 100);
-    // 3. Net Discount Pool for Distribution = Thalubadi - Kasiru (e.g. 25,000 - 5,000 = 20,000)
-    const netDividendPool = Math.max(0, bidDiscount - organizerCommission);
-    // 4. Dividend per Member = Net Discount Pool / 20 Members (e.g. 20,000 / 20 = 1,000)
-    const dividendPerShare = Math.floor(netDividendPool / totalShares);
-    // 5. Monthly Installment Due = Base Monthly Contribution - Dividend (e.g. 5,000 - 1,000 = 4,000)
+
+    // 2. Kasiru / Agent Pay (e.g. 1L -> ₹3,000, 2L -> ₹6,000, 3L -> ₹9,000, 5L -> ₹15,000)
+    const organizerCommission = agentPayNum;
+
+    // 3. Per Member Due = (Winner Prize Amount + Agent Pay) / Total Members
+    // e.g. (80,000 + 3,000) / 20 = 83,000 / 20 = 4,150
+    const netInstallmentDue = Math.round((payoutAmount + agentPayNum) / totalShares);
+
     const baseMonthly = Number(group.installment_base_amount) || Math.round(totalPot / totalShares);
-    const netInstallmentDue = Math.max(0, baseMonthly - dividendPerShare);
+    const dividendPerShare = Math.max(0, baseMonthly - netInstallmentDue);
+    const netDividendPool = dividendPerShare * totalShares;
 
     // Find winning member's share in this group
     let [winningShare] = await sql`
@@ -1387,12 +1398,12 @@ apiRouter.post('/bidding/record', async (req, res) => {
       INSERT INTO auctions (
         chit_group_id, month_number, auction_date, winning_member_id, winning_share_id,
         taken_by_member_id,
-        bid_discount_amount, organizer_commission, net_dividend_pool, dividend_per_share,
+        bid_discount_amount, organizer_commission, agent_pay, net_dividend_pool, dividend_per_share,
         net_installment_due, payout_amount, notes
       ) VALUES (
         ${chit_group_id}, ${mNum}, ${aDate}, ${winning_member_id}, ${winningShare.id},
         ${takerId},
-        ${bidDiscount}, ${organizerCommission}, ${netDividendPool}, ${dividendPerShare},
+        ${bidDiscount}, ${organizerCommission}, ${agentPayNum}, ${netDividendPool}, ${dividendPerShare},
         ${netInstallmentDue}, ${payoutAmount}, ${notes || null}
       )
       ON CONFLICT (chit_group_id, month_number)
@@ -1403,6 +1414,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
         taken_by_member_id = EXCLUDED.taken_by_member_id,
         bid_discount_amount = EXCLUDED.bid_discount_amount,
         organizer_commission = EXCLUDED.organizer_commission,
+        agent_pay = EXCLUDED.agent_pay,
         net_dividend_pool = EXCLUDED.net_dividend_pool,
         dividend_per_share = EXCLUDED.dividend_per_share,
         net_installment_due = EXCLUDED.net_installment_due,
@@ -1447,7 +1459,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
       VALUES (
         'AUCTION_HELD', ${auction.id}, ${chit_group_id},
-        ${`Month ${mNum} Bidding recorded for ${group.name}. Winner: ${memberName}, Winning Amount: ₹${payoutAmount.toLocaleString('en-IN')}, Thalubadi: ₹${bidDiscount.toLocaleString('en-IN')}, Kasiru (5%): ₹${organizerCommission.toLocaleString('en-IN')}, Per Member Due: ₹${netInstallmentDue.toLocaleString('en-IN')}`}
+        ${`Month ${mNum} Bidding recorded for ${group.name}. Winner: ${memberName}, Prize: ₹${payoutAmount.toLocaleString('en-IN')}, Agent Pay: ₹${agentPayNum.toLocaleString('en-IN')}, Thalubadi: ₹${bidDiscount.toLocaleString('en-IN')}, Per Member Due: ₹${netInstallmentDue.toLocaleString('en-IN')}`}
       );
     `;
 
@@ -1458,6 +1470,7 @@ apiRouter.post('/bidding/record', async (req, res) => {
         totalPot,
         winnerPayout: payoutAmount,
         baseMonthly,
+        agentPay: agentPayNum,
         thalubadi: bidDiscount,
         kasiru: organizerCommission,
         netDiscount: netDividendPool,
@@ -1752,7 +1765,7 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
         const totalPot = Number(group.total_pot_value);
         const totalShares = Number(group.total_shares || 20);
         const baseMonthly = Number(group.installment_base_amount) || Math.round(totalPot / totalShares);
-        const kasiru = Math.round((totalPot * 5) / 100);
+        let kasiru = Math.round((totalPot * 5) / 100);
 
         // Fetch auction for this month (if any)
         const [auction] = await sql`
@@ -1775,6 +1788,7 @@ apiRouter.get('/monthly-payments/month/:month', async (req, res) => {
 
         if (auction) {
           thalubadi = Number(auction.bid_discount_amount);
+          kasiru = Number(auction.agent_pay || auction.organizer_commission || kasiru);
           netDiscount = Number(auction.net_dividend_pool);
           dividendPerShare = Number(auction.dividend_per_share);
           calculatedDue = Number(auction.net_installment_due);

@@ -51,6 +51,14 @@ interface BiddingViewProps {
   onGoToPayments?: () => void;
 }
 
+export const getDefaultAgentPay = (pot: number): string => {
+  if (pot === 100000) return '3000';
+  if (pot === 200000) return '6000';
+  if (pot === 300000) return '9000';
+  if (pot === 500000) return '15000';
+  return String(Math.round((pot / 100000) * 3000));
+};
+
 export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(1);
   const [data, setData] = useState<MonthBiddingResponse | null>(null);
@@ -69,6 +77,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         isTakenByAnother: boolean;
         takenByMemberId: string;
         payoutAmount: string;
+        agentPay: string;
         notes: string;
         isSubmitting: boolean;
       }
@@ -125,6 +134,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
           isTakenByAnother: boolean;
           takenByMemberId: string;
           payoutAmount: string;
+          agentPay: string;
           notes: string;
           isSubmitting: boolean;
         }
@@ -138,6 +148,14 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         // Default suggestion: 95% of pot or default discount
         const pot = Number(s.group.total_pot_value);
         const defaultPayout = String(Math.round(pot * 0.95));
+        const defaultAgent = getDefaultAgentPay(pot);
+        const initialAgent =
+          s.auction?.agent_pay !== undefined && s.auction?.agent_pay !== null
+            ? String(s.auction.agent_pay)
+            : s.auction?.organizer_commission !== undefined && s.auction?.organizer_commission !== null
+            ? String(s.auction.organizer_commission)
+            : defaultAgent;
+
         const taker = s.auction?.taken_by_member_id || s.auction?.winning_member_id || defaultWinner;
         const isAnother = Boolean(
           s.auction?.taken_by_member_id &&
@@ -149,6 +167,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
           isTakenByAnother: isAnother,
           takenByMemberId: taker,
           payoutAmount: s.auction ? String(s.auction.payout_amount) : defaultPayout,
+          agentPay: initialAgent,
           notes: s.auction?.notes || '',
           isSubmitting: false,
         };
@@ -183,6 +202,8 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
     const payoutNum = parseFloat(inputs.payoutAmount);
     const pot = Number(scheme.group.total_pot_value);
+    const agentPayNum = parseFloat(inputs.agentPay);
+    const finalAgentPay = !isNaN(agentPayNum) ? Math.max(0, agentPayNum) : Number(getDefaultAgentPay(pot));
 
     if (isNaN(payoutNum) || payoutNum <= 0 || payoutNum > pot) {
       alert(`Please enter a valid winning payout amount between ₹1 and ₹${pot.toLocaleString('en-IN')}`);
@@ -201,6 +222,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         winning_member_id: inputs.winningMemberId,
         taken_by_member_id: inputs.isTakenByAnother && inputs.takenByMemberId ? inputs.takenByMemberId : inputs.winningMemberId,
         winner_payout_amount: payoutNum,
+        agent_pay: finalAgentPay,
         notes: inputs.notes.trim() || undefined,
       });
 
@@ -455,22 +477,34 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
             const pot = Number(scheme.group.total_pot_value);
             const totalMembers = Number(scheme.group.total_shares || 20);
             const isFinalized = scheme.auction !== null;
+            const baseAgentPay = getDefaultAgentPay(pot);
             const currentInputs = formInputs[scheme.group.id] || {
               winningMemberId: '',
+              isTakenByAnother: false,
+              takenByMemberId: '',
               payoutAmount: String(Math.round(pot * 0.95)),
+              agentPay: baseAgentPay,
               notes: '',
               isSubmitting: false,
             };
 
-            // Real-time live math calculation (Tamil Nadu standard chit fund math)
+            // Real-time live math calculation (Tamil Nadu chit fund math with Agent's Pay)
             const inputPayout = parseFloat(currentInputs.payoutAmount) || 0;
             const liveWinnerPayout = isFinalized ? Number(scheme.auction?.payout_amount) : inputPayout;
+            const inputAgentPay = parseFloat(currentInputs.agentPay);
+            const liveAgentPay = isFinalized
+              ? Number(scheme.auction?.agent_pay ?? scheme.auction?.organizer_commission ?? baseAgentPay)
+              : (!isNaN(inputAgentPay) ? Math.max(0, inputAgentPay) : Number(baseAgentPay));
+
             const baseMonthly = Number(scheme.group.installment_base_amount) || Math.round(pot / totalMembers);
+            // 1. Thalubadi (Thasiru / தள்ளுபடி) = Gross Pot - Winner Payout
+            // "thallubadi will remain 20000 and not 17000 ... this will not be reflected in the tharisu or thalubadi"
             const liveThalubadi = Math.max(0, pot - liveWinnerPayout);
-            const liveKasiru = Math.round((pot * 5) / 100);
-            const liveNetDiscount = Math.max(0, liveThalubadi - liveKasiru);
-            const liveDividendPerMember = Math.floor(liveNetDiscount / totalMembers);
-            const livePerMemberDue = Math.max(0, baseMonthly - liveDividendPerMember);
+
+            // 2. Per Member Due (சீட்டுக்கு கட்ட வேண்டிய பணம்) = (Winner Prize Amount + Agent's Pay) / Total Members
+            // "so each will be payin (80000+3000) / 20"
+            const livePerMemberDue = Math.round((liveWinnerPayout + liveAgentPay) / totalMembers);
+            const liveDividendPerMember = Math.max(0, baseMonthly - livePerMemberDue);
 
             // Preset suggestions based on pot
             const presets =
@@ -687,7 +721,102 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </div>
                       </div>
 
-                      {/* 3. Automated Real-Time Math Logic Display (Standard Chit Fund Math) */}
+                      {/* 2b. Agent's Pay Input (He can add or decrease this) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            Agent&apos;s Pay / கமிஷன் (ஏஜென்ட் கட்டணம்)
+                          </label>
+                          <span className="text-[10px] font-bold text-forest-700 bg-forest-50 px-2 py-0.5 rounded-md border border-forest-100">
+                            Base: ₹{Number(baseAgentPay).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                              ₹
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="500"
+                              value={currentInputs.agentPay}
+                              onChange={(e) =>
+                                setFormInputs((prev) => ({
+                                  ...prev,
+                                  [scheme.group.id]: {
+                                    ...prev[scheme.group.id],
+                                    agentPay: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={baseAgentPay}
+                              className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700"
+                            />
+                          </div>
+
+                          {/* Quick Steppers: -500, Reset Base, +500 */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const curr = parseFloat(currentInputs.agentPay) || 0;
+                                setFormInputs((prev) => ({
+                                  ...prev,
+                                  [scheme.group.id]: {
+                                    ...prev[scheme.group.id],
+                                    agentPay: String(Math.max(0, curr - 500)),
+                                  },
+                                }));
+                              }}
+                              className="px-2 py-2 rounded-xl text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                              title="Decrease by ₹500"
+                            >
+                              -₹500
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormInputs((prev) => ({
+                                  ...prev,
+                                  [scheme.group.id]: {
+                                    ...prev[scheme.group.id],
+                                    agentPay: baseAgentPay,
+                                  },
+                                }))
+                              }
+                              className="px-2 py-2 rounded-xl text-[10px] font-bold bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 cursor-pointer"
+                              title="Reset to Base Agent Pay"
+                            >
+                              Base
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const curr = parseFloat(currentInputs.agentPay) || 0;
+                                setFormInputs((prev) => ({
+                                  ...prev,
+                                  [scheme.group.id]: {
+                                    ...prev[scheme.group.id],
+                                    agentPay: String(curr + 500),
+                                  },
+                                }));
+                              }}
+                              className="px-2 py-2 rounded-xl text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                              title="Increase by ₹500"
+                            >
+                              +₹500
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-slate-500 mt-1 font-medium leading-tight">
+                          ✓ Note: Agent&apos;s pay is added to members&apos; dues (+{formatINR(Math.round(liveAgentPay / totalMembers))}/member) and will <strong>NOT</strong> be deducted from Thalubadi.
+                        </p>
+                      </div>
+
+                      {/* 3. Automated Real-Time Math Logic Display (Client's Chit Fund Math) */}
                       <div className="p-3.5 rounded-xl bg-forest-50/70 border border-forest-100 space-y-2.5">
                         <div className="flex items-center justify-between text-forest-800 font-extrabold text-xs">
                           <div className="flex items-center gap-1.5">
@@ -714,29 +843,28 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
                           <div className="bg-white p-2 rounded-lg border border-forest-100">
                             <span className="text-[10px] text-slate-400 block font-bold uppercase">
-                              Kasiru (காசீரு 5%)
+                              Agent&apos;s Pay (காசுரு)
                             </span>
                             <span className="font-extrabold text-slate-700 text-sm">
-                              {formatINR(liveKasiru)}
+                              {formatINR(liveAgentPay)}
                             </span>
                             <span className="text-[9px] text-slate-400 block">
-                              (5% of Pot Pool)
+                              (Agent / Foreman Fee)
                             </span>
                           </div>
                         </div>
 
                         <div className="bg-white p-2.5 rounded-lg border border-forest-100 space-y-1">
                           <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                            <span>Net Discount ({formatINR(liveThalubadi)} - {formatINR(liveKasiru)}):</span>
-                            <span className="text-forest-800">{formatINR(liveNetDiscount)}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-700">
-                            <span>Dividend Savings per Member (÷ 20):</span>
-                            <span>+{formatINR(liveDividendPerMember)}</span>
+                            <span>Total Pool ({formatINR(liveWinnerPayout)} + {formatINR(liveAgentPay)}):</span>
+                            <span className="text-forest-800 font-extrabold">{formatINR(liveWinnerPayout + liveAgentPay)}</span>
                           </div>
                           <div className="flex items-center justify-between text-xs font-black text-slate-900 pt-1 border-t border-slate-100">
-                            <span>Per Member Due ({formatINR(baseMonthly)} - {formatINR(liveDividendPerMember)}):</span>
+                            <span>Per Member Due (÷ {totalMembers} Members):</span>
                             <span className="text-forest-900 text-sm font-black">{formatINR(livePerMemberDue)}</span>
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-semibold pt-0.5">
+                            ✓ Thalubadi remains {formatINR(liveThalubadi)} (unaffected by agent&apos;s pay)
                           </div>
                         </div>
                       </div>
@@ -795,11 +923,11 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </div>
                       )}
 
-                      {/* 4 Metrics Grid */}
+                      {/* 4 Metrics Grid with Agent's Pay */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-[10px] text-slate-400 block uppercase font-bold">
-                            Winner Payout
+                            Winner Payout (சீட்டு)
                           </span>
                           <strong className="text-forest-800 font-extrabold text-sm block">
                             {formatINR(Number(scheme.auction?.payout_amount))}
@@ -809,35 +937,33 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
 
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                            Agent&apos;s Pay (காசுரு)
+                          </span>
+                          <strong className="text-slate-800 font-extrabold text-sm block">
+                            {formatINR(liveAgentPay)}
+                          </strong>
+                          <span className="text-[9px] text-slate-400">Foreman Commission</span>
+                        </div>
+
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold">
                             Thalubadi (தள்ளுபடி)
                           </span>
                           <strong className="text-amber-700 font-extrabold text-sm block">
                             {formatINR(Number(scheme.auction?.bid_discount_amount))}
                           </strong>
-                          <span className="text-[9px] text-slate-400">Kasiru (5%): {formatINR(liveKasiru)}</span>
+                          <span className="text-[9px] text-slate-400">Unaffected by Agent Pay</span>
                         </div>
 
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-[10px] text-slate-400 block uppercase font-bold">
                             Monthly Due / Person
                           </span>
-                          <strong className="text-slate-900 font-extrabold text-sm block">
+                          <strong className="text-forest-900 font-extrabold text-sm block">
                             {formatINR(Number(scheme.auction?.net_installment_due))}
                           </strong>
                           <span className="text-[9px] text-forest-700 font-semibold">
-                            (Base {formatINR(baseMonthly)} - Div {formatINR(Number(scheme.auction?.dividend_per_share))})
-                          </span>
-                        </div>
-
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">
-                            Dividend Savings
-                          </span>
-                          <strong className="text-emerald-700 font-extrabold text-sm block">
-                            +{formatINR(Number(scheme.auction?.dividend_per_share))}
-                          </strong>
-                          <span className="text-[9px] text-emerald-600 font-semibold">
-                            (Net Disc ÷ 20 Members)
+                            (({formatINR(Number(scheme.auction?.payout_amount))} + {formatINR(liveAgentPay)}) ÷ {totalMembers})
                           </span>
                         </div>
                       </div>
@@ -1132,10 +1258,20 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                 <h3 className="text-base font-extrabold text-slate-900">
                   Notify Members &bull; {membersModalScheme.group.name} (Month {selectedMonth})
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Calculated Due: <strong>{formatINR(membersModalScheme.auction.net_installment_due)}</strong> per member
-                  (Base {formatINR(Number(membersModalScheme.group.installment_base_amount))} - Dividend {formatINR(membersModalScheme.auction.dividend_per_share)}) &bull; Thalubadi: {formatINR(membersModalScheme.auction.bid_discount_amount)}
-                </p>
+                {(() => {
+                  const pot = Number(membersModalScheme.group.total_pot_value);
+                  const agentFee = Number(
+                    membersModalScheme.auction?.agent_pay ??
+                    membersModalScheme.auction?.organizer_commission ??
+                    getDefaultAgentPay(pot)
+                  );
+                  return (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Calculated Due: <strong>{formatINR(membersModalScheme.auction.net_installment_due)}</strong> per member
+                      &bull; Thalubadi: {formatINR(membersModalScheme.auction.bid_discount_amount)} &bull; Agent&apos;s Pay: {formatINR(agentFee)}
+                    </p>
+                  );
+                })()}
               </div>
               <button
                 onClick={() => setMembersModalScheme(null)}
@@ -1151,7 +1287,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                 Default Bilingual Message Template
               </span>
               <button
-                onClick={() =>
+                onClick={() => {
+                  const pot = Number(membersModalScheme.group.total_pot_value);
+                  const agentFee = Number(
+                    membersModalScheme.auction!.agent_pay ??
+                    membersModalScheme.auction!.organizer_commission ??
+                    getDefaultAgentPay(pot)
+                  );
                   handleCopy(
                     getMonthlyBiddingDueText({
                       memberName: '[Member Name]',
@@ -1161,12 +1303,12 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                       installmentDue: membersModalScheme.auction!.net_installment_due,
                       dividendSavings: membersModalScheme.auction!.dividend_per_share,
                       thalubadi: Number(membersModalScheme.auction!.bid_discount_amount),
-                      kasiru: Math.round(Number(membersModalScheme.group.total_pot_value) * 0.05),
+                      kasiru: agentFee,
                       baseAmount: Number(membersModalScheme.group.installment_base_amount),
                     }),
                     'roster-copy'
-                  )
-                }
+                  );
+                }}
                 className="flex items-center gap-1 font-bold text-forest-700 hover:text-forest-900 cursor-pointer"
               >
                 {copiedText === 'roster-copy' ? (
@@ -1186,10 +1328,15 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
             {/* Members Roster List */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {membersModalScheme.subscribers.map((sub) => {
+                const pot = Number(membersModalScheme.group.total_pot_value);
                 const dueAmount = membersModalScheme.auction!.net_installment_due;
                 const savings = membersModalScheme.auction!.dividend_per_share;
                 const thalubadi = Number(membersModalScheme.auction!.bid_discount_amount);
-                const kasiru = Math.round(Number(membersModalScheme.group.total_pot_value) * 0.05);
+                const kasiru = Number(
+                  membersModalScheme.auction!.agent_pay ??
+                  membersModalScheme.auction!.organizer_commission ??
+                  getDefaultAgentPay(pot)
+                );
                 const baseAmount = Number(membersModalScheme.group.installment_base_amount);
 
                 const smsUrl = createMonthlyBiddingDueSmsUrl({

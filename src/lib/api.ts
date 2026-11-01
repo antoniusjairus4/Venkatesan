@@ -399,6 +399,7 @@ export interface MonthSchemeBiddingData {
     payout_amount: number;
     bid_discount_amount: number;
     organizer_commission?: number;
+    agent_pay?: number;
     dividend_per_share: number;
     net_installment_due: number;
     payout_summary?: WinnerPayoutSummary | null;
@@ -445,6 +446,7 @@ export async function recordBidding(data: {
   winning_member_id: string;
   taken_by_member_id?: string;
   winner_payout_amount: number;
+  agent_pay?: number;
   auction_date?: string;
   notes?: string;
 }) {
@@ -606,6 +608,7 @@ export interface MonthlyPaymentScheme {
     payout_amount: number;
     thalubadi: number;
     kasiru: number;
+    agent_pay?: number;
     dividend_per_share: number;
     net_installment_due: number;
   } | null;
@@ -613,6 +616,7 @@ export interface MonthlyPaymentScheme {
     baseMonthly: number;
     thalubadi: number;
     kasiru: number;
+    agentPay?: number;
     dividendPerShare: number;
     netInstallmentDue: number;
   };

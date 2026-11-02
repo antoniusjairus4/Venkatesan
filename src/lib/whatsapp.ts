@@ -44,7 +44,7 @@ Kindly clear your balance installment at the earliest.
 Payment modes: Cash, GPay, PhonePe, Bank Transfer.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -118,7 +118,7 @@ Thank you for your prompt payment!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
-*Rajamanickam Chit Fund, Salem*
+*Rajamanickam Chit Fund, Yethapur*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -159,7 +159,7 @@ Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bi
 ராஜமாணிக்கம் சீட் பண்ட்-ல் இணைந்தமைக்கு நன்றி! தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
 
 Regards / இங்ஙனம்,
-*Rajamanickam Chit Fund, Salem*
+*Rajamanickam Chit Fund, Yethapur*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -205,7 +205,7 @@ export function createBiddingWinnerWhatsAppUrl(params: {
 வாழ்த்துக்கள்! தங்களின் சீட்டு எடுத்த தொகை விரைவில் தங்களுக்கு வழங்கப்படும்.
 
 Regards / இங்ஙனம்,
-*Rajamanickam Chit Fund, Salem*
+*Rajamanickam Chit Fund, Yethapur*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -222,7 +222,7 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
   monthNumber: number;
   winnerPayoutAmount: number;
   installmentDue: number;
-  dividendSavings: number;
+  dividendSavings?: number;
   thalubadi?: number;
   kasiru?: number;
   baseAmount?: number;
@@ -235,9 +235,9 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
     year: 'numeric',
   });
 
-  const baseAmt = params.baseAmount || (params.installmentDue + params.dividendSavings);
-  const thalubadiAmt = params.thalubadi !== undefined ? params.thalubadi : (params.dividendSavings * 20 + Math.round(baseAmt * 20 * 0.05));
-  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.round(baseAmt * 20 * 0.05);
+  const baseAmt = params.baseAmount || (params.installmentDue + (params.dividendSavings || 0));
+  // Kasuru = Base Contribution - Monthly Installment Due (e.g. 5000 - 4250 = 750)
+  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.max(0, baseAmt - params.installmentDue);
 
   const text =
 `வணக்கம் / Hello ${params.memberName},
@@ -250,12 +250,11 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
 • *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்
 • *சீட்டுக்கு கட்ட வேண்டிய பணம்:* ${formatINR(params.installmentDue)}
 • *காசுரு:* ${formatINR(kasiruAmt)}
-• *தள்ளுபடி:* ${formatINR(thalubadiAmt)}
 
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
-*Rajamanickam Chit Fund, Salem*
+*Rajamanickam Chit Fund, Yethapur*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -327,7 +326,7 @@ ${params.nextExpectedPayoutDate ? `• *அடுத்த தவணை தே�
 ${payoutLines}
 ${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• *Ref / UTR No:* ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
-*Rajamanickam Chit Fund, Salem*
+*Rajamanickam Chit Fund, Yethapur*
 Ph: +91 98765 43210`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;

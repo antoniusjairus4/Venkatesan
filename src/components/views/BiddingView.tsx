@@ -1259,16 +1259,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   Notify Members &bull; {membersModalScheme.group.name} (Month {selectedMonth})
                 </h3>
                 {(() => {
-                  const pot = Number(membersModalScheme.group.total_pot_value);
-                  const agentFee = Number(
-                    membersModalScheme.auction?.agent_pay ??
-                    membersModalScheme.auction?.organizer_commission ??
-                    getDefaultAgentPay(pot)
-                  );
+                  const baseAmount = Number(membersModalScheme.group.installment_base_amount);
+                  const dueAmount = membersModalScheme.auction.net_installment_due;
+                  const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
                   return (
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Calculated Due: <strong>{formatINR(membersModalScheme.auction.net_installment_due)}</strong> per member
-                      &bull; Thalubadi: {formatINR(membersModalScheme.auction.bid_discount_amount)} &bull; Agent&apos;s Pay: {formatINR(agentFee)}
+                      Calculated Due: <strong>{formatINR(dueAmount)}</strong> per member
+                      &bull; Kasuru (காசுரு): {formatINR(kasiruBenefit)} ({formatINR(baseAmount)} - {formatINR(dueAmount)})
                     </p>
                   );
                 })()}
@@ -1288,23 +1285,18 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               </span>
               <button
                 onClick={() => {
-                  const pot = Number(membersModalScheme.group.total_pot_value);
-                  const agentFee = Number(
-                    membersModalScheme.auction!.agent_pay ??
-                    membersModalScheme.auction!.organizer_commission ??
-                    getDefaultAgentPay(pot)
-                  );
+                  const baseAmount = Number(membersModalScheme.group.installment_base_amount);
+                  const dueAmount = membersModalScheme.auction!.net_installment_due;
+                  const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
                   handleCopy(
                     getMonthlyBiddingDueText({
                       memberName: '[Member Name]',
                       groupName: membersModalScheme.group.name,
                       monthNumber: selectedMonth,
                       winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
-                      installmentDue: membersModalScheme.auction!.net_installment_due,
-                      dividendSavings: membersModalScheme.auction!.dividend_per_share,
-                      thalubadi: Number(membersModalScheme.auction!.bid_discount_amount),
-                      kasiru: agentFee,
-                      baseAmount: Number(membersModalScheme.group.installment_base_amount),
+                      installmentDue: dueAmount,
+                      kasiru: kasiruBenefit,
+                      baseAmount,
                     }),
                     'roster-copy'
                   );
@@ -1328,16 +1320,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
             {/* Members Roster List */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {membersModalScheme.subscribers.map((sub) => {
-                const pot = Number(membersModalScheme.group.total_pot_value);
-                const dueAmount = membersModalScheme.auction!.net_installment_due;
-                const savings = membersModalScheme.auction!.dividend_per_share;
-                const thalubadi = Number(membersModalScheme.auction!.bid_discount_amount);
-                const kasiru = Number(
-                  membersModalScheme.auction!.agent_pay ??
-                  membersModalScheme.auction!.organizer_commission ??
-                  getDefaultAgentPay(pot)
-                );
                 const baseAmount = Number(membersModalScheme.group.installment_base_amount);
+                const dueAmount = membersModalScheme.auction!.net_installment_due;
+                const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
 
                 const smsUrl = createMonthlyBiddingDueSmsUrl({
                   phone: sub.member_phone,
@@ -1346,9 +1331,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   monthNumber: selectedMonth,
                   winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
                   installmentDue: dueAmount,
-                  dividendSavings: savings,
-                  thalubadi,
-                  kasiru,
+                  kasiru: kasiruBenefit,
                   baseAmount,
                 });
 
@@ -1359,9 +1342,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   monthNumber: selectedMonth,
                   winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
                   installmentDue: dueAmount,
-                  dividendSavings: savings,
-                  thalubadi,
-                  kasiru,
+                  kasiru: kasiruBenefit,
                   baseAmount,
                 });
 

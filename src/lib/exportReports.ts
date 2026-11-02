@@ -69,7 +69,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
   doc.setFontSize(9);
   doc.setTextColor(204, 251, 241); // mint-100
   doc.text('OFFICIAL SCHEME CLOSURE REPORT & AUDIT CERTIFICATE', margin + 6, currentY + 16);
-  doc.text('Salem, Tamil Nadu • Managing Foreman: K. Venkatesan', margin + 6, currentY + 22);
+  doc.text('Yethapur, Tamil Nadu • Managing Foreman: K. Venkatesan', margin + 6, currentY + 22);
 
   // Status Badge in Banner
   doc.setFillColor(255, 255, 255);
@@ -166,7 +166,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
     `#${m.share_ticket_number}`,
     m.member_name,
     m.phone,
-    m.address || 'Salem, TN',
+    m.address || 'Yethapur, TN',
     formatCurrency(Number(m.total_paid)),
     m.late_count > 0 ? `${m.late_count} Delayed` : 'Prompt',
     'CLEARED',
@@ -352,7 +352,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]);
-  doc.text('Managing Foreman & Organizer • Rajamanickam Chit Fund, Salem', margin + 5, currentY + 36);
+  doc.text('Managing Foreman & Organizer • Rajamanickam Chit Fund, Yethapur', margin + 5, currentY + 36);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
@@ -371,7 +371,7 @@ export function exportPastChitPdf(snapshot: PastChitSnapshot): void {
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184); // slate-400
     doc.text(
-      `Rajamanickam Chit Fund, Salem • Scheme Closure Report: ${group.name} • Page ${i} of ${totalPages}`,
+      `Rajamanickam Chit Fund, Yethapur • Scheme Closure Report: ${group.name} • Page ${i} of ${totalPages}`,
       pageWidth / 2,
       pageHeight - 8,
       { align: 'center' }
@@ -396,7 +396,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
   // --------------------------------------------------
   const summaryAoa = [
     ['RAJAMANICKAM CHIT FUND - PAST CHIT GROUP CLOSURE SUMMARY'],
-    ['Salem, Tamil Nadu • Managing Foreman: K. Venkatesan'],
+    ['Yethapur, Tamil Nadu • Managing Foreman: K. Venkatesan'],
     [],
     ['Parameter', 'Value'],
     ['Chit Scheme Name', group.name],
@@ -427,7 +427,7 @@ export function exportPastChitExcel(snapshot: PastChitSnapshot): void {
     'Member Number': m.share_ticket_number,
     'Member Name': m.member_name,
     'Phone Number': m.phone,
-    'Address / Town': m.address || 'Salem, TN',
+    'Address / Town': m.address || 'Yethapur, TN',
     'Total Paid (₹)': Number(m.total_paid),
     'Delayed Payments Count': m.late_count,
     'Prized / Winner': m.is_prized ? 'Yes' : 'No',

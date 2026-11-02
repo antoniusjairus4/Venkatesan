@@ -31,16 +31,15 @@ Chit Winner Notice / சீட்டு எடுத்தவர் பற்ற
 வாழ்த்துக்கள்! தங்களின் சீட்டு எடுத்த தொகை விரைவில் தங்களுக்கு வழங்கப்படும்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 
-// 2. Monthly Due Notice (Diary Page 2)
+// 2. Monthly Due Notice (Diary Page 2 - Updated for Yethapur & Client Kasuru logic)
 function getMonthlyBiddingDueText(params) {
   const nDate = params.noticeDate || '06-Mar-2024';
-  const baseAmt = params.baseAmount || (params.installmentDue + params.dividendSavings);
-  const thalubadiAmt = params.thalubadi !== undefined ? params.thalubadi : (params.dividendSavings * 20 + Math.round(baseAmt * 20 * 0.05));
-  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.round(baseAmt * 20 * 0.05);
+  const baseAmt = params.baseAmount || (params.installmentDue + (params.dividendSavings || 0));
+  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.max(0, baseAmt - params.installmentDue);
 
   return `வணக்கம் / Hello ${params.memberName},
 
@@ -52,12 +51,11 @@ Monthly Due Notice / மாதாந்திர தவணை அறிவிப
 • Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
 • சீட்டுக்கு கட்ட வேண்டிய பணம்: ₹${params.installmentDue.toLocaleString('en-IN')}
 • காசுரு: ₹${kasiruAmt.toLocaleString('en-IN')}
-• தள்ளுபடி: ₹${thalubadiAmt.toLocaleString('en-IN')}
 
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 
@@ -98,7 +96,7 @@ Chit Payout Receipt / சீட்டு எடுத்த தொகை வழ�
 ${payoutLines}
 ${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• Ref / UTR No: ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 
@@ -141,7 +139,7 @@ Payment Confirmation Receipt / தவணை வரவு ரசீது
 ${breakdownLines}
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 

@@ -62,7 +62,7 @@ Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bi
 ராஜமாணிக்கம் சீட் பண்ட்-ல் இணைந்தமைக்கு நன்றி! தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. மாதாந்திர தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -106,7 +106,7 @@ Your passbook has been created. Monthly installment updates will be communicated
 தங்களின் பாஸ்புக் தயார் செய்யப்பட்டுள்ளது. தவணை விவரங்கள் தங்களுக்கு உடனுக்குடன் தெரிவிக்கப்படும்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -182,7 +182,7 @@ Thank you for your prompt payment!
 சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -218,7 +218,7 @@ Passbook and office ledger have been updated in your name.
 பாஸ்புக் மற்றும் அலுவலக பதிவேட்டில் தங்களின் பெயர் முறைப்படி மாற்றப்பட்டுள்ளது.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -253,7 +253,7 @@ We sincerely thank you for your trust throughout this 20-month journey!
 இந்த 20 மாத கால பயணத்தில் எங்கள் மீது வைத்த தொடர் நம்பிக்கைக்கும் ஆதரவிற்கும் எங்கள் மனமார்ந்த நன்றிகள்!
 
 Warm Regards / அன்புடன்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -295,7 +295,7 @@ Kindly clear your pending installment at the earliest.
 Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 
   return createSmsUrl(params.phone, text);
@@ -338,7 +338,7 @@ Chit Winner Notice / சீட்டு எடுத்தவர் பற்ற
 வாழ்த்துக்கள்! தங்களின் சீட்டு எடுத்த தொகை விரைவில் தங்களுக்கு வழங்கப்படும்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 
@@ -365,7 +365,7 @@ export function getMonthlyBiddingDueText(params: {
   monthNumber: number;
   winnerPayoutAmount: number;
   installmentDue: number;
-  dividendSavings: number;
+  dividendSavings?: number;
   thalubadi?: number;
   kasiru?: number;
   baseAmount?: number;
@@ -377,9 +377,9 @@ export function getMonthlyBiddingDueText(params: {
     year: 'numeric',
   });
 
-  const baseAmt = params.baseAmount || (params.installmentDue + params.dividendSavings);
-  const thalubadiAmt = params.thalubadi !== undefined ? params.thalubadi : (params.dividendSavings * 20 + Math.round(baseAmt * 20 * 0.05));
-  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.round(baseAmt * 20 * 0.05);
+  const baseAmt = params.baseAmount || (params.installmentDue + (params.dividendSavings || 0));
+  // Kasuru = Base Contribution - Monthly Installment Due (e.g. 5000 - 4250 = 750)
+  const kasiruAmt = params.kasiru !== undefined ? params.kasiru : Math.max(0, baseAmt - params.installmentDue);
 
   return `வணக்கம் / Hello ${params.memberName},
 
@@ -391,12 +391,11 @@ Monthly Due Notice / மாதாந்திர தவணை அறிவிப
 • Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்
 • சீட்டுக்கு கட்ட வேண்டிய பணம்: ₹${params.installmentDue.toLocaleString('en-IN')}
 • காசுரு: ₹${kasiruAmt.toLocaleString('en-IN')}
-• தள்ளுபடி: ₹${thalubadiAmt.toLocaleString('en-IN')}
 
 குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
 
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 
@@ -407,7 +406,7 @@ export function createMonthlyBiddingDueSmsUrl(params: {
   monthNumber: number;
   winnerPayoutAmount: number;
   installmentDue: number;
-  dividendSavings: number;
+  dividendSavings?: number;
   thalubadi?: number;
   kasiru?: number;
   baseAmount?: number;
@@ -480,7 +479,7 @@ Chit Payout Receipt / சீட்டு எடுத்த தொகை வழ�
 ${payoutLines}
 ${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• Ref / UTR No: ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
-Rajamanickam Chit Fund, Salem
+Rajamanickam Chit Fund, Yethapur
 Ph: +91 98765 43210`;
 }
 

@@ -6,7 +6,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg)](https://tailwindcss.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon%20Serverless-336791.svg)](https://neon.tech/)
 
-A comprehensive, mobile-first, and production-ready administration portal engineered for **Mr. Venkatesan** to manage the complete lifecycle of **Rajamanickam Chit Fund** (Salem, Tamil Nadu). 
+A comprehensive, mobile-first, and production-ready administration portal engineered for **Mr. Venkatesan** to manage the complete lifecycle of **Rajamanickam Chit Fund** (Yethapur, Tamil Nadu). 
 
 The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,000, ₹3,00,000) with automated bidding mathematics, multi-installment prize disbursements, split payment ledgers, historical group archiving with PDF/Excel reports, and an automated bilingual (Tamil & English) SMS and WhatsApp notification engine.
 
@@ -25,7 +25,7 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
   - **Zero Thalubadi Impact:** Agent's pay is **NOT** deducted from Thalubadi (`Thalubadi = Total Pot - Winner Prize Amount` remains untouched).
   - **Shared Across All Members:** The total monthly pool `(Winner Prize Amount + Agent's Pay)` is split equally among all members: `Per Member Due = (Winner Prize + Agent's Pay) ÷ Total Members`.
 - **Targeted Winner Announcement (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):** 1-tap SMS & WhatsApp notification sent strictly to the chit taker with prize payout and discount details.
-- **Member Due Announcements (மாதாந்திர தவணை அறிவிப்பு):** 1-tap notifications to all subscribers detailing Scheme, Date, Month, Payable Amount, Foreman Fee (`காசுரு`), and Discount (`தள்ளுபடி`).
+- **Member Due Announcements (மாதாந்திர தவணை அறிவிப்பு):** 1-tap notifications to all subscribers detailing Scheme, Date, Month, Payable Amount, and Member Savings/Dividend Discount (`காசுரு`).
 
 ---
 
@@ -72,7 +72,7 @@ The platform handles 20-month rotating chit fund schemes (₹1,00,000, ₹2,00,0
 Native SMS (`sms:`) and WhatsApp (`https://wa.me/`) templates adhering strictly to client Mr. Venkatesan's handwritten diary specifications:
 1. **Chit Welcome / Enrollment Confirmation:** Sent upon joining a group with member number, pot value, start date, and duration.
 2. **Winner Notice (சீட்டு எடுத்தவர் பற்றிய அறிவிப்பு):** Sent directly to the person who took the chit with Scheme, Date, Month (X-வது மாதம்), Prize Amount (சீட்டு எடுத்த தொகை), and Discount (தள்ளுபடி).
-3. **Monthly Due Notification (மாதாந்திர தவணை அறிவிப்பு):** Sent to all subscribers detailing Scheme, Date, Month, Payable Amount (சீட்டுக்கு கட்ட வேண்டிய பணம்), Foreman Fee (காசுரு), and Discount (தள்ளுபடி).
+3. **Monthly Due Notification (மாதாந்திர தவணை அறிவிப்பு):** Sent to all subscribers detailing Scheme, Date, Month, Payable Amount (சீட்டுக்கு கட்ட வேண்டிய பணம்), and Savings Discount (காசுரு = Base Installment - Due).
 4. **Winner Prize Payout Receipt (சீட்டு எடுத்த தொகை வழங்கல் ரசீது):**
    - *Case 1 (Full):* Amount given (முழுத் தொகை), Balance: NIL, கணக்கு முடிக்கப்பட்டது. ✓
    - *Case 2 (First Partial):* Amount given now, remaining balance, next scheduled payout date.

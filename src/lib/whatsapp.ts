@@ -45,7 +45,7 @@ Payment modes: Cash, GPay, PhonePe, Bank Transfer.
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -119,7 +119,7 @@ Thank you for your prompt payment!
 
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Yethapur*
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -160,7 +160,7 @@ Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bi
 
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Yethapur*
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -206,7 +206,7 @@ export function createBiddingWinnerWhatsAppUrl(params: {
 
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Yethapur*
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -255,7 +255,7 @@ export function createMonthlyBiddingDueWhatsAppUrl(params: {
 
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Yethapur*
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
@@ -327,7 +327,7 @@ ${payoutLines}
 ${params.paymentMethod ? `• *Payment Mode / முறை:* ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• *Ref / UTR No:* ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
 *Rajamanickam Chit Fund, Yethapur*
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }

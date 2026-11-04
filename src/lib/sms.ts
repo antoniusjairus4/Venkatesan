@@ -63,7 +63,7 @@ Welcome to Rajamanickam Chit Fund! Your passbook has been registered. Monthly bi
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -107,7 +107,7 @@ Your passbook has been created. Monthly installment updates will be communicated
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -183,7 +183,7 @@ Thank you for your prompt payment!
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -219,7 +219,7 @@ Passbook and office ledger have been updated in your name.
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -254,7 +254,7 @@ We sincerely thank you for your trust throughout this 20-month journey!
 
 Warm Regards / அன்புடன்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -296,7 +296,7 @@ Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, P
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 
   return createSmsUrl(params.phone, text);
 }
@@ -339,7 +339,7 @@ Chit Winner Notice / சீட்டு எடுத்தவர் பற்ற
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 export function createBiddingWinnerSmsUrl(params: {
@@ -396,7 +396,7 @@ Monthly Due Notice / மாதாந்திர தவணை அறிவிப
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 export function createMonthlyBiddingDueSmsUrl(params: {
@@ -480,7 +480,7 @@ ${payoutLines}
 ${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• Ref / UTR No: ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 export function createWinnerPayoutInstallmentSmsUrl(params: {

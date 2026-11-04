@@ -32,7 +32,7 @@ Chit Winner Notice / சீட்டு எடுத்தவர் பற்ற
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 // 2. Monthly Due Notice (Diary Page 2 - Updated for Yethapur & Client Kasuru logic)
@@ -56,7 +56,7 @@ Monthly Due Notice / மாதாந்திர தவணை அறிவிப
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 // 3. Winner Prize Payout Receipt (Diary Page 3 & 4)
@@ -97,7 +97,7 @@ ${payoutLines}
 ${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptReference ? `• Ref / UTR No: ${params.receiptReference}\n` : ''}
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 // 4. Monthly Payment Received Receipt (Diary Page 4 & 5)
@@ -140,7 +140,7 @@ ${breakdownLines}
 
 Regards / இங்ஙனம்,
 Rajamanickam Chit Fund, Yethapur
-Ph: +91 98765 43210`;
+Ph: +91 99944 18186`;
 }
 
 console.log('--- TEST 1: Winner Announcement (Diary 1 & 2) ---');

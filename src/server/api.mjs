@@ -20,16 +20,68 @@ apiRouter.get('/health', async (req, res) => {
   }
 });
 
+// Self-healing schema sync for mid-cycle onboarding and archival columns
+let schemaSynced = false;
+async function ensureSchemaSync() {
+  if (schemaSynced) return;
+  try {
+    await sql`
+      ALTER TABLE chit_groups ADD COLUMN IF NOT EXISTS tracking_start_month INT DEFAULT 1;
+      ALTER TABLE chit_groups ADD COLUMN IF NOT EXISTS current_month INT DEFAULT 1;
+      ALTER TABLE chit_groups ADD COLUMN IF NOT EXISTS is_mid_cycle BOOLEAN DEFAULT FALSE;
+      ALTER TABLE chit_groups ADD COLUMN IF NOT EXISTS historical_settlement_notes TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';
+      ALTER TABLE member_shares ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';
+    `;
+    try {
+      await sql`ALTER TABLE member_shares DROP CONSTRAINT IF EXISTS unique_group_ticket;`;
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS unique_active_group_ticket 
+        ON member_shares (chit_group_id, share_ticket_number) 
+        WHERE status = 'ACTIVE';
+      `;
+    } catch (_) {}
+    schemaSynced = true;
+  } catch (err) {
+    console.warn('Schema sync warning:', err.message);
+  }
+}
+ensureSchemaSync().catch(() => {});
+
 // ------------------------------------------------------------
 // Dashboard Stats
 // ------------------------------------------------------------
 apiRouter.get('/dashboard-summary', async (req, res) => {
   try {
-    const [groupsCount] = await sql`SELECT COUNT(*)::int as count FROM chit_groups;`;
-    const [membersCount] = await sql`SELECT COUNT(*)::int as count FROM members;`;
-    const [activeChits] = await sql`SELECT COUNT(*)::int as count FROM chit_groups WHERE status = 'ACTIVE' AND (moved_as_completed IS FALSE OR moved_as_completed IS NULL);`;
-    const [collections] = await sql`SELECT COALESCE(SUM(amount_paid), 0)::numeric as total FROM payment_transactions;`;
-    const [pendingDues] = await sql`SELECT COALESCE(SUM(net_due_amount - paid_amount), 0)::numeric as total FROM installments WHERE status != 'PAID';`;
+    await ensureSchemaSync();
+    const [groupsCount] = await sql`
+      SELECT COUNT(*)::int as count FROM chit_groups 
+      WHERE (moved_as_completed IS FALSE OR moved_as_completed IS NULL);
+    `;
+    const [membersCount] = await sql`
+      SELECT COUNT(*)::int as count FROM members 
+      WHERE status = 'ACTIVE';
+    `;
+    const [activeChits] = await sql`
+      SELECT COUNT(*)::int as count FROM chit_groups 
+      WHERE status = 'ACTIVE' AND (moved_as_completed IS FALSE OR moved_as_completed IS NULL);
+    `;
+    const [collections] = await sql`
+      SELECT COALESCE(SUM(amount_paid), 0)::numeric as total 
+      FROM payment_transactions;
+    `;
+    const [pendingDues] = await sql`
+      SELECT COALESCE(SUM(i.net_due_amount - i.paid_amount), 0)::numeric as total 
+      FROM installments i
+      JOIN chit_groups g ON i.chit_group_id = g.id
+      JOIN members m ON i.member_id = m.id
+      WHERE i.status != 'PAID' 
+        AND i.status != 'HISTORICALLY_SETTLED'
+        AND i.status != 'CANCELLED'
+        AND i.month_number >= COALESCE(g.tracking_start_month, 1)
+        AND m.status = 'ACTIVE'
+        AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL);
+    `;
 
     res.json({
       totalGroups: groupsCount.count,
@@ -49,6 +101,7 @@ apiRouter.get('/dashboard-summary', async (req, res) => {
 // ------------------------------------------------------------
 apiRouter.get('/analytics', async (req, res) => {
   try {
+    await ensureSchemaSync();
     const { chit_group_id } = req.query;
     const isSpecificGroup = chit_group_id && chit_group_id !== 'ALL';
 
@@ -56,16 +109,25 @@ apiRouter.get('/analytics', async (req, res) => {
     const collectionQuery = isSpecificGroup
       ? sql`
           SELECT 
-            COALESCE(SUM(paid_amount), 0)::numeric as collected,
-            COALESCE(SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END), 0)::numeric as pending
-          FROM installments
-          WHERE chit_group_id = ${chit_group_id};
+            COALESCE(SUM(i.paid_amount), 0)::numeric as collected,
+            COALESCE(SUM(CASE WHEN i.status != 'PAID' AND i.status != 'HISTORICALLY_SETTLED' AND i.status != 'CANCELLED' THEN (i.net_due_amount - i.paid_amount) ELSE 0 END), 0)::numeric as pending
+          FROM installments i
+          JOIN chit_groups g ON i.chit_group_id = g.id
+          JOIN members m ON i.member_id = m.id
+          WHERE i.chit_group_id = ${chit_group_id}
+            AND i.month_number >= COALESCE(g.tracking_start_month, 1)
+            AND m.status = 'ACTIVE';
         `
       : sql`
           SELECT 
-            COALESCE(SUM(paid_amount), 0)::numeric as collected,
-            COALESCE(SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END), 0)::numeric as pending
-          FROM installments;
+            COALESCE(SUM(i.paid_amount), 0)::numeric as collected,
+            COALESCE(SUM(CASE WHEN i.status != 'PAID' AND i.status != 'HISTORICALLY_SETTLED' AND i.status != 'CANCELLED' THEN (i.net_due_amount - i.paid_amount) ELSE 0 END), 0)::numeric as pending
+          FROM installments i
+          JOIN chit_groups g ON i.chit_group_id = g.id
+          JOIN members m ON i.member_id = m.id
+          WHERE i.month_number >= COALESCE(g.tracking_start_month, 1)
+            AND m.status = 'ACTIVE'
+            AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL);
         `;
     const [collRes] = await collectionQuery;
     const collected = Number(collRes?.collected || 0);
@@ -117,7 +179,12 @@ apiRouter.get('/analytics', async (req, res) => {
           FROM installments i
           JOIN members m ON i.member_id = m.id
           JOIN chit_groups g ON i.chit_group_id = g.id
-          WHERE i.status != 'PAID' AND i.chit_group_id = ${chit_group_id}
+          WHERE i.status != 'PAID' 
+            AND i.status != 'HISTORICALLY_SETTLED'
+            AND i.status != 'CANCELLED'
+            AND i.month_number >= COALESCE(g.tracking_start_month, 1)
+            AND m.status = 'ACTIVE'
+            AND i.chit_group_id = ${chit_group_id}
           GROUP BY m.id, m.name, m.phone, g.name
           ORDER BY unpaid_count DESC, pending_amount DESC;
         `
@@ -132,7 +199,12 @@ apiRouter.get('/analytics', async (req, res) => {
           FROM installments i
           JOIN members m ON i.member_id = m.id
           JOIN chit_groups g ON i.chit_group_id = g.id
-          WHERE i.status != 'PAID'
+          WHERE i.status != 'PAID' 
+            AND i.status != 'HISTORICALLY_SETTLED'
+            AND i.status != 'CANCELLED'
+            AND i.month_number >= COALESCE(g.tracking_start_month, 1)
+            AND m.status = 'ACTIVE'
+            AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)
           GROUP BY m.id, m.name, m.phone, g.name
           ORDER BY unpaid_count DESC, pending_amount DESC;
         `;
@@ -220,9 +292,10 @@ apiRouter.get('/chit-groups', async (req, res) => {
       groups = await sql`
         SELECT 
           g.*,
-          COUNT(s.id)::int as enrolled_shares
+          COUNT(CASE WHEN m.id IS NOT NULL THEN s.id END)::int as enrolled_shares
         FROM chit_groups g
-        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id AND s.status = 'ACTIVE'
+        LEFT JOIN members m ON s.member_id = m.id AND m.status = 'ACTIVE'
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
       `;
@@ -230,9 +303,10 @@ apiRouter.get('/chit-groups', async (req, res) => {
       groups = await sql`
         SELECT 
           g.*,
-          COUNT(s.id)::int as enrolled_shares
+          COUNT(CASE WHEN m.id IS NOT NULL THEN s.id END)::int as enrolled_shares
         FROM chit_groups g
-        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id AND s.status = 'ACTIVE'
+        LEFT JOIN members m ON s.member_id = m.id AND m.status = 'ACTIVE'
         WHERE g.status = 'COMPLETED' OR g.moved_as_completed = TRUE
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
@@ -241,21 +315,23 @@ apiRouter.get('/chit-groups', async (req, res) => {
       groups = await sql`
         SELECT 
           g.*,
-          COUNT(s.id)::int as enrolled_shares
+          COUNT(CASE WHEN m.id IS NOT NULL THEN s.id END)::int as enrolled_shares
         FROM chit_groups g
-        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id AND s.status = 'ACTIVE'
+        LEFT JOIN members m ON s.member_id = m.id AND m.status = 'ACTIVE'
         WHERE g.status = ${status} AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
       `;
     } else {
-      // Default to ACTIVE groups only so active views never get polluted by archived data
+      // Default to ACTIVE and UPCOMING groups only so active views never get polluted by archived data
       groups = await sql`
         SELECT 
           g.*,
-          COUNT(s.id)::int as enrolled_shares
+          COUNT(CASE WHEN m.id IS NOT NULL THEN s.id END)::int as enrolled_shares
         FROM chit_groups g
-        LEFT JOIN member_shares s ON g.id = s.chit_group_id
+        LEFT JOIN member_shares s ON g.id = s.chit_group_id AND s.status = 'ACTIVE'
+        LEFT JOIN members m ON s.member_id = m.id AND m.status = 'ACTIVE'
         WHERE (g.status = 'ACTIVE' OR g.status = 'UPCOMING') AND (g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)
         GROUP BY g.id
         ORDER BY g.total_pot_value ASC, g.created_at ASC;
@@ -286,16 +362,21 @@ apiRouter.get('/chit-groups/:id/subscribers', async (req, res) => {
         COALESCE(inst_agg.total_pending, 0)::numeric as total_pending
       FROM member_shares s
       JOIN members m ON s.member_id = m.id
+      JOIN chit_groups cg ON s.chit_group_id = cg.id
       LEFT JOIN (
         SELECT 
-          member_id,
-          SUM(CASE WHEN status = 'PAID' THEN paid_amount ELSE 0 END) as total_paid,
-          SUM(CASE WHEN status != 'PAID' THEN (net_due_amount - paid_amount) ELSE 0 END) as total_pending
-        FROM installments
-        WHERE chit_group_id = ${id}
-        GROUP BY member_id
+          i.member_id,
+          SUM(CASE WHEN i.status = 'PAID' THEN i.paid_amount ELSE 0 END) as total_paid,
+          SUM(CASE WHEN i.status != 'PAID' AND i.status != 'HISTORICALLY_SETTLED' AND i.status != 'CANCELLED' THEN (i.net_due_amount - i.paid_amount) ELSE 0 END) as total_pending
+        FROM installments i
+        JOIN chit_groups g ON i.chit_group_id = g.id
+        WHERE i.chit_group_id = ${id}
+          AND i.month_number >= COALESCE(g.tracking_start_month, 1)
+        GROUP BY i.member_id
       ) inst_agg ON inst_agg.member_id = m.id
-      WHERE s.chit_group_id = ${id}
+      WHERE s.chit_group_id = ${id} 
+        AND s.status = 'ACTIVE' 
+        AND m.status = 'ACTIVE'
       GROUP BY m.id, m.name, m.phone, m.whatsapp_phone, m.address, inst_agg.total_paid, inst_agg.total_pending
       ORDER BY MIN(s.share_ticket_number) ASC;
     `;
@@ -461,7 +542,17 @@ apiRouter.get('/past-chit-groups/:id/snapshot', async (req, res) => {
 
 apiRouter.post('/chit-groups', async (req, res) => {
   try {
-    const { name, total_pot_value, total_months, start_date, notes } = req.body;
+    const {
+      name,
+      total_pot_value,
+      total_months,
+      start_date,
+      notes,
+      tracking_start_month,
+      current_month,
+      is_mid_cycle,
+      historical_settlement_notes,
+    } = req.body;
     if (!name || !total_pot_value || !total_months || !start_date) {
       return res.status(400).json({ error: 'Please provide chit group name, pot value, duration in months, and start date.' });
     }
@@ -474,11 +565,18 @@ apiRouter.post('/chit-groups', async (req, res) => {
     const totalShares = months; // Scheme size matches duration (e.g. 20 months -> 20 members)
     const baseAmount = Math.round(totalPot / months);
 
+    const startM = parseInt(tracking_start_month, 10) || 1;
+    const isMidCycle = Boolean(is_mid_cycle || startM > 1);
+    const currM = parseInt(current_month, 10) || startM;
+    const initialStatus = isMidCycle ? 'ACTIVE' : 'UPCOMING';
+
     const [newGroup] = await sql`
       INSERT INTO chit_groups (
-        name, total_pot_value, total_months, total_shares, installment_base_amount, start_date, notes
+        name, total_pot_value, total_months, total_shares, installment_base_amount, start_date, notes,
+        tracking_start_month, current_month, is_mid_cycle, historical_settlement_notes, status
       ) VALUES (
-        ${name}, ${totalPot}, ${months}, ${totalShares}, ${baseAmount}, ${start_date}, ${notes || null}
+        ${name}, ${totalPot}, ${months}, ${totalShares}, ${baseAmount}, ${start_date}, ${notes || null},
+        ${startM}, ${currM}, ${isMidCycle}, ${historical_settlement_notes || null}, ${initialStatus}
       )
       RETURNING *;
     `;
@@ -486,10 +584,59 @@ apiRouter.post('/chit-groups', async (req, res) => {
     // Log Activity
     await sql`
       INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
-      VALUES ('GROUP_CREATED', ${newGroup.id}, ${newGroup.id}, ${`Created chit group "${name}" of ₹${totalPot.toLocaleString('en-IN')} for ${months} months starting ${start_date}`});
+      VALUES ('GROUP_CREATED', ${newGroup.id}, ${newGroup.id}, ${`Created chit group "${name}" of ₹${totalPot.toLocaleString('en-IN')} for ${months} months starting ${start_date}${isMidCycle ? ` (Mid-cycle starting Month ${startM})` : ''}`});
     `;
 
     res.status(201).json(newGroup);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.patch('/chit-groups/:id/onboarding', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tracking_start_month, current_month, historical_settlement_notes } = req.body;
+    const startM = parseInt(tracking_start_month, 10);
+    const currM = parseInt(current_month, 10) || startM;
+
+    if (isNaN(startM) || startM < 1 || startM > 20) {
+      return res.status(400).json({ error: 'Tracking start month must be between 1 and 20.' });
+    }
+
+    const isMidCycle = startM > 1;
+    const [updated] = await sql`
+      UPDATE chit_groups
+      SET 
+        tracking_start_month = ${startM},
+        current_month = ${currM},
+        is_mid_cycle = ${isMidCycle},
+        historical_settlement_notes = ${historical_settlement_notes || null},
+        status = ${isMidCycle ? 'ACTIVE' : 'UPCOMING'},
+        updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+
+    if (!updated) return res.status(404).json({ error: 'Chit group not found.' });
+
+    // Clean up any untracked earlier installments with paid_amount = 0 (like artificial month 1)
+    if (startM > 1) {
+      await sql`
+        DELETE FROM installments
+        WHERE chit_group_id = ${id}
+          AND month_number < ${startM}
+          AND paid_amount = 0;
+      `;
+    }
+
+    // Log Activity
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+      VALUES ('ONBOARDING_UPDATED', ${id}, ${id}, ${`Configured chit group "${updated.name}" tracking start at Month ${startM} (Mid-cycle: ${isMidCycle})`});
+    `;
+
+    res.json({ success: true, group: updated });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -500,18 +647,36 @@ apiRouter.post('/chit-groups', async (req, res) => {
 // ------------------------------------------------------------
 apiRouter.get('/members', async (req, res) => {
   try {
-    const members = await sql`
-      SELECT 
-        m.*,
-        COUNT(s.id)::int as total_shares_held,
-        STRING_AGG(DISTINCT cg.name, ', ') as enrolled_schemes,
-        STRING_AGG(DISTINCT CONCAT(cg.name, ' (#', s.share_ticket_number, ')'), ', ') as ticket_details
-      FROM members m
-      LEFT JOIN member_shares s ON m.id = s.member_id
-      LEFT JOIN chit_groups cg ON s.chit_group_id = cg.id
-      GROUP BY m.id
-      ORDER BY m.name ASC;
-    `;
+    const { status } = req.query;
+    let members;
+    if (status === 'ALL') {
+      members = await sql`
+        SELECT 
+          m.*,
+          COUNT(s.id)::int as total_shares_held,
+          STRING_AGG(DISTINCT cg.name, ', ') as enrolled_schemes,
+          STRING_AGG(DISTINCT CONCAT(cg.name, ' (#', s.share_ticket_number, ')'), ', ') as ticket_details
+        FROM members m
+        LEFT JOIN member_shares s ON (m.id = s.member_id AND s.status = 'ACTIVE')
+        LEFT JOIN chit_groups cg ON s.chit_group_id = cg.id
+        GROUP BY m.id
+        ORDER BY m.name ASC;
+      `;
+    } else {
+      members = await sql`
+        SELECT 
+          m.*,
+          COUNT(s.id)::int as total_shares_held,
+          STRING_AGG(DISTINCT cg.name, ', ') as enrolled_schemes,
+          STRING_AGG(DISTINCT CONCAT(cg.name, ' (#', s.share_ticket_number, ')'), ', ') as ticket_details
+        FROM members m
+        LEFT JOIN member_shares s ON (m.id = s.member_id AND s.status = 'ACTIVE')
+        LEFT JOIN chit_groups cg ON s.chit_group_id = cg.id
+        WHERE m.status = 'ACTIVE'
+        GROUP BY m.id
+        ORDER BY m.name ASC;
+      `;
+    }
     res.json(members);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -547,7 +712,7 @@ apiRouter.post('/members', async (req, res) => {
       const gid = scheme.chit_group_id;
       const count = Number(scheme.share_count) || 1;
 
-      const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${gid};`;
+      const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${gid} AND status = 'ACTIVE';`;
       const taken = new Set(existing.map((e) => e.share_ticket_number));
       let ticket = 1;
 
@@ -555,17 +720,20 @@ apiRouter.post('/members', async (req, res) => {
         while (taken.has(ticket)) ticket++;
         taken.add(ticket);
         const [newShare] = await sql`
-          INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
-          VALUES (${gid}, ${newMember.id}, ${ticket})
+          INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number, status)
+          VALUES (${gid}, ${newMember.id}, ${ticket}, 'ACTIVE')
           RETURNING *;
         `;
         ticket++;
 
-        // Automatically generate installment(s) for the new share so it appears in Record Payment immediately
+        // Only generate installment for existing auctioned months >= group's tracking_start_month
+        const [group] = await sql`SELECT tracking_start_month FROM chit_groups WHERE id = ${gid};`;
+        const startM = Number(group?.tracking_start_month || 1);
+
         const existingMonths = await sql`
           SELECT DISTINCT month_number, base_amount, dividend_deduction, net_due_amount
           FROM installments
-          WHERE chit_group_id = ${gid}
+          WHERE chit_group_id = ${gid} AND month_number >= ${startM}
           ORDER BY month_number ASC;
         `;
 
@@ -578,20 +746,6 @@ apiRouter.post('/members', async (req, res) => {
               ) VALUES (
                 ${gid}, ${m.month_number}, ${newMember.id}, ${newShare.id},
                 ${m.base_amount}, ${m.dividend_deduction}, ${m.net_due_amount}, 0, 'PENDING'
-              )
-              ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
-            `;
-          }
-        } else {
-          const [group] = await sql`SELECT * FROM chit_groups WHERE id = ${gid};`;
-          if (group) {
-            await sql`
-              INSERT INTO installments (
-                chit_group_id, month_number, member_id, share_id,
-                base_amount, dividend_deduction, net_due_amount, paid_amount, status
-              ) VALUES (
-                ${gid}, 1, ${newMember.id}, ${newShare.id},
-                ${group.installment_base_amount}, 0, ${group.installment_base_amount}, 0, 'PENDING'
               )
               ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
             `;
@@ -612,6 +766,105 @@ apiRouter.post('/members', async (req, res) => {
   }
 });
 
+apiRouter.delete('/members/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [member] = await sql`SELECT * FROM members WHERE id = ${id};`;
+    if (!member) {
+      return res.status(404).json({ error: 'Member not found.' });
+    }
+
+    // 1. Check if member won an auction or is prized in any chit scheme
+    const prizedShares = await sql`
+      SELECT ms.share_ticket_number, ms.prized_month_number, cg.name as group_name
+      FROM member_shares ms
+      JOIN chit_groups cg ON ms.chit_group_id = cg.id
+      WHERE ms.member_id = ${id} AND ms.is_prized = true;
+    `;
+    if (prizedShares.length > 0) {
+      const p = prizedShares[0];
+      return res.status(400).json({
+        error: `Cannot delete member: "${member.name}" won the auction in Month ${p.prized_month_number} for "${p.group_name}" (Member #${p.share_ticket_number}). Delete or reset the auction first before deleting.`
+      });
+    }
+
+    const winningAuctions = await sql`
+      SELECT a.month_number, cg.name as group_name
+      FROM auctions a
+      JOIN chit_groups cg ON a.chit_group_id = cg.id
+      WHERE a.winning_member_id = ${id} OR a.taken_by_member_id = ${id};
+    `;
+    if (winningAuctions.length > 0) {
+      const wa = winningAuctions[0];
+      return res.status(400).json({
+        error: `Cannot delete member: "${member.name}" is recorded as auction winner/beneficiary in Month ${wa.month_number} for "${wa.group_name}". Please reset or reassign the auction first.`
+      });
+    }
+
+    // 2. Check if member is involved in any chit transfers
+    const transfers = await sql`
+      SELECT ct.effective_month_number, cg.name as group_name
+      FROM chit_transfers ct
+      JOIN chit_groups cg ON ct.chit_group_id = cg.id
+      WHERE ct.from_member_id = ${id} OR ct.to_member_id = ${id};
+    `;
+    if (transfers.length > 0) {
+      const tr = transfers[0];
+      return res.status(400).json({
+        error: `Cannot delete member: "${member.name}" is involved in a chit transfer in Month ${tr.effective_month_number} for "${tr.group_name}".`
+      });
+    }
+
+    // 3. Check if member has financial transaction history
+    const [txCount] = await sql`
+      SELECT COUNT(*)::int as count FROM payment_transactions WHERE member_id = ${id};
+    `;
+
+    if (txCount && txCount.count > 0) {
+      // PRESERVE FINANCIAL TRANSACTION HISTORY FOR AUDITING:
+      // Soft-delete member, release their shares, cancel unpaid installments
+      await sql`UPDATE members SET status = 'INACTIVE', updated_at = NOW() WHERE id = ${id};`;
+      await sql`UPDATE member_shares SET status = 'RELEASED', updated_at = NOW() WHERE member_id = ${id};`;
+      await sql`
+        UPDATE installments 
+        SET status = 'CANCELLED', updated_at = NOW() 
+        WHERE member_id = ${id} AND status != 'PAID';
+      `;
+
+      await sql`
+        INSERT INTO activity_ledger (event_type, entity_id, description)
+        VALUES ('MEMBER_ARCHIVED', ${id}, ${`Archived/soft-deleted member "${member.name}" (${member.phone}) - preserved ${txCount.count} payment transactions for auditing`});
+      `;
+
+      return res.json({
+        success: true,
+        archived: true,
+        message: `Member "${member.name}" archived successfully. Financial history (${txCount.count} transactions) preserved for accounting audit.`,
+      });
+    }
+
+    // If NO payment transactions exist:
+    await sql`DELETE FROM winner_payout_installments WHERE member_id = ${id};`;
+    await sql`DELETE FROM installments WHERE member_id = ${id};`;
+    await sql`DELETE FROM member_shares WHERE member_id = ${id};`;
+    await sql`DELETE FROM members WHERE id = ${id};`;
+
+    // Log Activity
+    await sql`
+      INSERT INTO activity_ledger (event_type, entity_id, description)
+      VALUES ('MEMBER_DELETED', ${id}, ${`Deleted member "${member.name}" (${member.phone}) from directory`});
+    `;
+
+    res.json({
+      success: true,
+      message: `Member "${member.name}" deleted successfully from directory.`,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ------------------------------------------------------------
 // RULE 2: Multiple Chit Shares at Inception
 // Member can join with 1, 2, 5 shares before chit starts.
@@ -622,7 +875,7 @@ apiRouter.post('/member-shares', async (req, res) => {
     const { chit_group_id, member_id, share_count } = req.body;
 
     // Verify chit status
-    const [group] = await sql`SELECT status, total_shares FROM chit_groups WHERE id = ${chit_group_id};`;
+    const [group] = await sql`SELECT status, total_shares, tracking_start_month FROM chit_groups WHERE id = ${chit_group_id};`;
     if (!group) {
       return res.status(404).json({ error: 'Chit group not found.' });
     }
@@ -632,8 +885,8 @@ apiRouter.post('/member-shares', async (req, res) => {
       });
     }
 
-    // Get current taken tickets
-    const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${chit_group_id};`;
+    // Get current taken tickets for active shares
+    const existing = await sql`SELECT share_ticket_number FROM member_shares WHERE chit_group_id = ${chit_group_id} AND status = 'ACTIVE';`;
     const taken = new Set(existing.map((e) => e.share_ticket_number));
 
     const count = Number(share_count);
@@ -650,18 +903,19 @@ apiRouter.post('/member-shares', async (req, res) => {
       taken.add(ticket);
 
       const [newShare] = await sql`
-        INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number)
-        VALUES (${chit_group_id}, ${member_id}, ${ticket})
+        INSERT INTO member_shares (chit_group_id, member_id, share_ticket_number, status)
+        VALUES (${chit_group_id}, ${member_id}, ${ticket}, 'ACTIVE')
         RETURNING *;
       `;
       created.push(newShare);
       ticket++;
 
-      // Automatically generate installment(s) for the new share
+      // Automatically generate installment(s) for the new share only for existing auctioned months >= tracking_start_month
+      const startM = Number(group.tracking_start_month || 1);
       const existingMonths = await sql`
         SELECT DISTINCT month_number, base_amount, dividend_deduction, net_due_amount
         FROM installments
-        WHERE chit_group_id = ${chit_group_id}
+        WHERE chit_group_id = ${chit_group_id} AND month_number >= ${startM}
         ORDER BY month_number ASC;
       `;
 
@@ -674,20 +928,6 @@ apiRouter.post('/member-shares', async (req, res) => {
             ) VALUES (
               ${chit_group_id}, ${m.month_number}, ${member_id}, ${newShare.id},
               ${m.base_amount}, ${m.dividend_deduction}, ${m.net_due_amount}, 0, 'PENDING'
-            )
-            ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
-          `;
-        }
-      } else {
-        const [grp] = await sql`SELECT * FROM chit_groups WHERE id = ${chit_group_id};`;
-        if (grp) {
-          await sql`
-            INSERT INTO installments (
-              chit_group_id, month_number, member_id, share_id,
-              base_amount, dividend_deduction, net_due_amount, paid_amount, status
-            ) VALUES (
-              ${chit_group_id}, 1, ${member_id}, ${newShare.id},
-              ${grp.installment_base_amount}, 0, ${grp.installment_base_amount}, 0, 'PENDING'
             )
             ON CONFLICT (chit_group_id, month_number, share_id) DO NOTHING;
           `;
@@ -731,13 +971,40 @@ apiRouter.delete('/chit-groups/:groupId/members/:memberId', async (req, res) => 
 
     const shareIds = shares.map((s) => s.id);
 
-    // Delete payment transactions for these shares
-    await sql`DELETE FROM payment_transactions WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds});`;
+    // Check if payment transactions exist for these shares
+    const [txCount] = await sql`
+      SELECT COUNT(*)::int as count FROM payment_transactions 
+      WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds});
+    `;
 
-    // Delete installments for these shares
+    if (txCount && txCount.count > 0) {
+      // Preserve payment transactions for auditing, release active shares, cancel unpaid installments
+      await sql`
+        UPDATE member_shares 
+        SET status = 'RELEASED', updated_at = NOW() 
+        WHERE id = ANY(${shareIds});
+      `;
+      await sql`
+        UPDATE installments 
+        SET status = 'CANCELLED', updated_at = NOW() 
+        WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds}) AND status != 'PAID';
+      `;
+
+      await sql`
+        INSERT INTO activity_ledger (event_type, entity_id, chit_group_id, description)
+        VALUES ('MEMBER_REMOVED_ARCHIVED', ${memberId}, ${groupId}, ${`Released shares for member "${member.name}" in chit group "${group.name}". Preserved ${txCount.count} payment transactions for auditing`});
+      `;
+
+      return res.json({
+        success: true,
+        archived: true,
+        message: `Member "${member.name}" removed from "${group.name}". Financial history preserved for accounting audit.`,
+        removed_shares: shares.map((s) => s.share_ticket_number),
+      });
+    }
+
+    // If no payment transactions exist:
     await sql`DELETE FROM installments WHERE chit_group_id = ${groupId} AND share_id = ANY(${shareIds});`;
-
-    // Delete member_shares
     await sql`DELETE FROM member_shares WHERE id = ANY(${shareIds});`;
 
     // Log Activity
@@ -762,60 +1029,48 @@ apiRouter.delete('/chit-groups/:groupId/members/:memberId', async (req, res) => 
 // ------------------------------------------------------------
 apiRouter.get('/installments', async (req, res) => {
   try {
-    const { chit_group_id, month_number, status } = req.query;
+    const { chit_group_id, month_number, status, member_id } = req.query;
 
-    let rows;
-    if (chit_group_id && month_number) {
-      rows = await sql`
-        SELECT 
-          i.*,
-          m.name as member_name,
-          m.phone as member_phone,
-          g.name as group_name,
-          s.share_ticket_number
-        FROM installments i
-        JOIN members m ON i.member_id = m.id
-        JOIN chit_groups g ON i.chit_group_id = g.id
-        JOIN member_shares s ON i.share_id = s.id
-        WHERE i.chit_group_id = ${chit_group_id} AND i.month_number = ${Number(month_number)}
-        ORDER BY g.name, i.month_number, s.share_ticket_number;
-      `;
-    } else if (chit_group_id) {
-      rows = await sql`
-        SELECT 
-          i.*,
-          m.name as member_name,
-          m.phone as member_phone,
-          g.name as group_name,
-          s.share_ticket_number
-        FROM installments i
-        JOIN members m ON i.member_id = m.id
-        JOIN chit_groups g ON i.chit_group_id = g.id
-        JOIN member_shares s ON i.share_id = s.id
-        WHERE i.chit_group_id = ${chit_group_id}
-        ORDER BY g.name, i.month_number, s.share_ticket_number;
-      `;
-    } else {
-      // By default without a specific group ID, return only installments belonging to ACTIVE groups
-      rows = await sql`
-        SELECT 
-          i.*,
-          m.name as member_name,
-          m.phone as member_phone,
-          g.name as group_name,
-          s.share_ticket_number
-        FROM installments i
-        JOIN members m ON i.member_id = m.id
-        JOIN chit_groups g ON i.chit_group_id = g.id
-        JOIN member_shares s ON i.share_id = s.id
-        WHERE g.status = 'ACTIVE'
-        ORDER BY g.name, i.month_number, s.share_ticket_number;
-      `;
+    const conditions = [
+      sql`(g.status = 'ACTIVE' OR g.status = 'UPCOMING')`,
+      sql`(g.moved_as_completed IS FALSE OR g.moved_as_completed IS NULL)`,
+      sql`m.status = 'ACTIVE'`,
+      sql`s.status = 'ACTIVE'`,
+      sql`i.status NOT IN ('HISTORICALLY_SETTLED', 'CANCELLED')`,
+      sql`i.month_number >= COALESCE(g.tracking_start_month, 1)`,
+    ];
+
+    if (chit_group_id) {
+      conditions.push(sql`i.chit_group_id = ${chit_group_id}`);
     }
-
+    if (month_number) {
+      conditions.push(sql`i.month_number = ${Number(month_number)}`);
+    }
+    if (member_id) {
+      conditions.push(sql`i.member_id = ${member_id}`);
+    }
     if (status) {
-      rows = rows.filter((r) => r.status === status);
+      conditions.push(sql`i.status = ${status}`);
     }
+
+    const whereClause = conditions.reduce((acc, cond, idx) => (idx === 0 ? cond : sql`${acc} AND ${cond}`));
+
+    const rows = await sql`
+      SELECT 
+        i.*,
+        m.name as member_name,
+        m.phone as member_phone,
+        m.whatsapp_phone,
+        g.name as group_name,
+        g.total_pot_value,
+        s.share_ticket_number
+      FROM installments i
+      JOIN members m ON i.member_id = m.id
+      JOIN chit_groups g ON i.chit_group_id = g.id
+      JOIN member_shares s ON i.share_id = s.id
+      WHERE ${whereClause}
+      ORDER BY g.name, i.month_number, s.share_ticket_number;
+    `;
 
     res.json(rows);
   } catch (error) {
@@ -860,6 +1115,9 @@ apiRouter.post('/record-payment', async (req, res) => {
       WHERE id = ${installment_id}
       RETURNING *;
     `;
+
+    // Activate group if upcoming
+    await sql`UPDATE chit_groups SET status = 'ACTIVE' WHERE id = ${inst.chit_group_id} AND status = 'UPCOMING';`;
 
     // Record Transaction
     const [tx] = await sql`
@@ -1224,6 +1482,9 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
             commission_percent: Number(group.commission_percent || 0),
             status: group.status,
             start_date: group.start_date,
+            tracking_start_month: Number(group.tracking_start_month || 1),
+            current_month: Number(group.current_month || 1),
+            is_mid_cycle: Boolean(group.is_mid_cycle),
           },
           auction: auction
             ? {
@@ -1277,17 +1538,25 @@ apiRouter.get('/bidding/month/:month', async (req, res) => {
     const monthsStatus = Array.from({ length: 20 }, (_, idx) => {
       const m = idx + 1;
       const count = allAuctions.filter((a) => Number(a.month_number) === m).length;
+      const isSettled = groups.length > 0 && groups.every((g) => Number(g.tracking_start_month || 1) > m);
       return {
         month: m,
         auctionsCount: count,
         totalSchemes: groups.length,
-        isCompleted: count >= groups.length && groups.length > 0,
+        isCompleted: isSettled || (count >= groups.length && groups.length > 0),
         hasAny: count > 0,
+        isHistoricallySettled: isSettled,
       };
     });
 
+    const activeTrackingMonth = Math.max(
+      1,
+      ...groups.map((g) => Number(g.current_month || g.tracking_start_month || 1))
+    );
+
     res.json({
       selectedMonth: month,
+      activeTrackingMonth,
       schemes: schemesData,
       monthsStatus,
     });
@@ -1428,6 +1697,16 @@ apiRouter.post('/bidding/record', async (req, res) => {
       UPDATE member_shares
       SET is_prized = TRUE, prized_month_number = ${mNum}
       WHERE id = ${winningShare.id};
+    `;
+
+    // Activate group if upcoming and update current_month
+    await sql`
+      UPDATE chit_groups
+      SET 
+        status = 'ACTIVE',
+        current_month = GREATEST(COALESCE(current_month, 1), ${mNum}),
+        updated_at = NOW()
+      WHERE id = ${chit_group_id};
     `;
 
     // Update / upsert installments for all members in this group for this month with the calculated due amount

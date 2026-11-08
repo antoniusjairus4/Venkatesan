@@ -1,8 +1,10 @@
 import { neon, neonConfig } from '@neondatabase/serverless';
 import 'dotenv/config';
+import dns from 'node:dns';
 
-// Disable stale connection caching to prevent 'TypeError: fetch failed' on idle timeouts
-neonConfig.fetchConnectionCache = false;
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
 
 const databaseUrl = process.env.DATABASE_URL;
 

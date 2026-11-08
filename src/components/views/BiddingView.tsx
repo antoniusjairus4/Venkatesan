@@ -68,6 +68,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
   const [data, setData] = useState<MonthBiddingResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialMonthSynced, setInitialMonthSynced] = useState<boolean>(false);
 
   // Scheme filter: 'ALL' or specific group id
   const [selectedSchemeFilter, setSelectedSchemeFilter] = useState<string>('ALL');
@@ -144,6 +145,16 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
       setLoading(true);
       setError(null);
       const res = await fetchMonthBiddingData(month);
+
+      if (!initialMonthSynced && res.activeTrackingMonth && res.activeTrackingMonth > 1) {
+        const allMidCycle = res.schemes.length > 0 && res.schemes.every((s) => (s.group.tracking_start_month || 1) > 1);
+        if (allMidCycle && month === 1) {
+          setInitialMonthSynced(true);
+          setSelectedMonth(res.activeTrackingMonth);
+          return;
+        }
+      }
+      setInitialMonthSynced(true);
       setData(res);
 
       // Pre-fill form inputs with sensible defaults
@@ -417,6 +428,8 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                 className={`shrink-0 flex flex-col items-center justify-center min-w-[42px] py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-forest-700 text-white shadow-xs scale-105 ring-2 ring-forest-500/20'
+                    : m.isHistoricallySettled
+                    ? 'bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100'
                     : hasAuction
                     ? 'bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100'
                     : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
@@ -424,8 +437,10 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               >
                 <span>M{m.month}</span>
                 <span className="flex items-center gap-0.5 mt-0.5">
-                  {isAllDone ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="All 3 Biddings Completed" />
+                  {m.isHistoricallySettled ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Historically Settled" />
+                  ) : isAllDone ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="All Biddings Completed" />
                   ) : hasAuction ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Partial Biddings Logged" />
                   ) : (
@@ -1538,6 +1553,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                     // Check all active chits for this member across all schemes in Month selectedMonth
                     const allActiveChits: Array<{
                       groupName: string;
+                      chitAmount?: number;
                       ticketNumber?: number | string;
                       monthNumber: number;
                       installmentDue: number;
@@ -1555,6 +1571,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                           userShares.forEach((us) => {
                             allActiveChits.push({
                               groupName: sc.group.name,
+                              chitAmount: Number(sc.group.total_pot_value),
                               ticketNumber: us.share_ticket_number,
                               monthNumber: selectedMonth,
                               installmentDue: scDue,
@@ -1571,6 +1588,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                       ? allActiveChits
                       : member.tickets.map((t) => ({
                           groupName: membersModalScheme.group.name,
+                          chitAmount: Number(membersModalScheme.group.total_pot_value),
                           ticketNumber: t,
                           monthNumber: selectedMonth,
                           installmentDue: dueAmount,

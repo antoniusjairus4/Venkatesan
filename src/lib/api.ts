@@ -19,6 +19,10 @@ export interface ChitGroup {
   end_date?: string;
   enrolled_shares?: number;
   notes?: string;
+  tracking_start_month?: number;
+  current_month?: number;
+  is_mid_cycle?: boolean;
+  historical_settlement_notes?: string;
   moved_as_completed?: boolean;
   moved_as_completed_at?: string;
   created_at: string;
@@ -67,7 +71,9 @@ export interface Installment {
   last_payment_date?: string;
   member_name?: string;
   member_phone?: string;
+  whatsapp_phone?: string;
   group_name?: string;
+  total_pot_value?: number;
   share_ticket_number?: number;
 }
 
@@ -159,6 +165,10 @@ export async function createChitGroup(data: {
   total_months: number;
   start_date: string;
   notes?: string;
+  tracking_start_month?: number;
+  current_month?: number;
+  is_mid_cycle?: boolean;
+  historical_settlement_notes?: string;
 }): Promise<ChitGroup> {
   const res = await fetch('/api/chit-groups', {
     method: 'POST',
@@ -168,6 +178,26 @@ export async function createChitGroup(data: {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || 'Failed to create chit group');
+  }
+  return res.json();
+}
+
+export async function updateChitGroupOnboarding(
+  groupId: string,
+  data: {
+    tracking_start_month: number;
+    current_month?: number;
+    historical_settlement_notes?: string;
+  }
+): Promise<{ success: boolean; group: ChitGroup }> {
+  const res = await fetch(`/api/chit-groups/${groupId}/onboarding`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update chit group onboarding');
   }
   return res.json();
 }
@@ -229,14 +259,27 @@ export async function removeMemberFromGroup(groupId: string, memberId: string) {
   return res.json();
 }
 
+export async function deleteMember(memberId: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/members/${memberId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete member');
+  }
+  return res.json();
+}
+
 export async function fetchInstallments(params?: {
   chit_group_id?: string;
   month_number?: number;
+  member_id?: string;
   status?: string;
 }): Promise<Installment[]> {
   const query = new URLSearchParams();
   if (params?.chit_group_id) query.append('chit_group_id', params.chit_group_id);
   if (params?.month_number) query.append('month_number', String(params.month_number));
+  if (params?.member_id) query.append('member_id', params.member_id);
   if (params?.status) query.append('status', params.status);
 
   const res = await fetch(`/api/installments?${query.toString()}`);
@@ -424,6 +467,7 @@ export interface MonthSchemeBiddingData {
 
 export interface MonthBiddingResponse {
   selectedMonth: number;
+  activeTrackingMonth?: number;
   schemes: MonthSchemeBiddingData[];
   monthsStatus: Array<{
     month: number;
@@ -431,6 +475,7 @@ export interface MonthBiddingResponse {
     totalSchemes: number;
     isCompleted: boolean;
     hasAny: boolean;
+    isHistoricallySettled?: boolean;
   }>;
 }
 

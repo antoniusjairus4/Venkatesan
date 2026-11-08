@@ -19,6 +19,9 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
   const [months, setMonths] = useState('20');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [isMidCycle, setIsMidCycle] = useState(false);
+  const [trackingStartMonth, setTrackingStartMonth] = useState('12');
+  const [historicalSettlementNotes, setHistoricalSettlementNotes] = useState('Months 1-11 settled offline outside portal');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +30,7 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
   const potNum = Number(totalPot) || 0;
   const monthsNum = Number(months) || 20;
   const basePerMonth = monthsNum > 0 ? potNum / monthsNum : 0;
+  const startMonthNum = isMidCycle ? Math.max(1, Math.min(monthsNum, parseInt(trackingStartMonth, 10) || 1)) : 1;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +49,10 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
         total_months: monthsNum,
         start_date: startDate,
         notes: notes.trim() || undefined,
+        tracking_start_month: isMidCycle ? startMonthNum : 1,
+        current_month: isMidCycle ? startMonthNum : 1,
+        is_mid_cycle: isMidCycle && startMonthNum > 1,
+        historical_settlement_notes: isMidCycle && startMonthNum > 1 ? historicalSettlementNotes.trim() : undefined,
       });
 
       onSuccess();
@@ -189,6 +197,53 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
               placeholder="e.g. 20 shares, 20 months duration"
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-forest-700"
             />
+          </div>
+
+          {/* Mid-Cycle Onboarding Section */}
+          <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-blue-950 block">Mid-Cycle Onboarding (முந்தைய சீட்டு சேர்க்கை)</span>
+                <span className="text-[10px] text-blue-700 font-medium">Already ongoing chit starting from a later month</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isMidCycle}
+                  onChange={(e) => setIsMidCycle(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            {isMidCycle && (
+              <div className="space-y-2.5 pt-2 border-t border-blue-200/60 animate-in fade-in">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-bold text-blue-900 uppercase tracking-wider">
+                      First Month Tracked in Portal
+                    </label>
+                    <span className="text-[10px] font-extrabold text-blue-700">
+                      Months 1 to {Math.max(1, startMonthNum - 1)} Settled Offline
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="2"
+                    max={monthsNum}
+                    value={trackingStartMonth}
+                    onChange={(e) => setTrackingStartMonth(e.target.value)}
+                    placeholder="12"
+                    className="w-full px-3 py-1.5 bg-white border border-blue-300 rounded-xl text-xs font-bold text-blue-950 focus:outline-none focus:border-blue-700"
+                  />
+                </div>
+
+                <div className="p-2 rounded-xl bg-blue-100/60 text-[10px] text-blue-900 leading-relaxed">
+                  ✓ Months 1 to {Math.max(1, startMonthNum - 1)} are marked as historically completed outside the portal. No artificial pending dues or fake payment transactions will be generated. Tracking begins actively from <strong>Month {startMonthNum}</strong>.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-2">

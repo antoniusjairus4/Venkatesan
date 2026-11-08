@@ -389,6 +389,7 @@ export function createMultiChitMonthlyBiddingDueWhatsAppUrl(params: {
   monthNumber?: number;
   items: Array<{
     groupName: string;
+    chitAmount?: number;
     ticketNumber?: number | string;
     monthNumber?: number;
     installmentDue: number;
@@ -409,13 +410,14 @@ export function createMultiChitMonthlyBiddingDueWhatsAppUrl(params: {
   const monthLine = params.monthNumber ? `• *Chit Month / சீட்டு மாதம்:* ${params.monthNumber}-வது மாதம்\n` : '';
 
   const itemLines = params.items.map((it) => {
+    const potText = it.chitAmount ? ` [₹${it.chitAmount.toLocaleString('en-IN')} Scheme]` : '';
     const ticketText = it.ticketNumber ? ` (Member #${it.ticketNumber})` : '';
     const mText = it.monthNumber && it.monthNumber !== params.monthNumber ? ` [Month ${it.monthNumber}]` : '';
     const kasiruText = it.kasiru !== undefined && it.kasiru > 0 ? `\n    - காசுரு: ${formatINR(it.kasiru)}` : '';
     const remText = it.remainingBalance !== undefined && it.paidAmount !== undefined && it.paidAmount > 0
       ? `\n    - செலுத்தியது: ${formatINR(it.paidAmount)} | மீதி: ${formatINR(it.remainingBalance)}`
       : '';
-    return `• *${it.groupName}*${ticketText}${mText}:
+    return `• *${it.groupName}*${potText}${ticketText}${mText}:
     - சீட்டுக்கு கட்ட வேண்டிய பணம்: ${formatINR(it.installmentDue)}${kasiruText}${remText}`;
   }).join('\n');
 
@@ -534,6 +536,7 @@ export function createMultiChitOverdueReminderWhatsAppUrl(params: {
   memberName: string;
   items: Array<{
     groupName: string;
+    chitAmount?: number;
     ticketNumber?: number | string;
     monthNumber?: number;
     pendingAmount: number;
@@ -542,10 +545,11 @@ export function createMultiChitOverdueReminderWhatsAppUrl(params: {
 }): string {
   const phone = cleanPhone(params.phone);
   const itemLines = params.items.map((it) => {
+    const potText = it.chitAmount ? ` [₹${it.chitAmount.toLocaleString('en-IN')} Scheme]` : '';
     const ticketText = it.ticketNumber ? ` (Member #${it.ticketNumber})` : '';
     const mText = it.monthNumber ? ` - Month ${it.monthNumber}` : '';
     const countText = it.unpaidCount && it.unpaidCount > 1 ? ` (${it.unpaidCount} Months)` : '';
-    return `• *${it.groupName}*${ticketText}${mText}: நிலுவை ${formatINR(it.pendingAmount)}${countText}`;
+    return `• *${it.groupName}*${potText}${ticketText}${mText}: நிலுவை ${formatINR(it.pendingAmount)}${countText}`;
   }).join('\n');
 
   const totalOverdue = params.items.reduce((sum, it) => sum + (it.pendingAmount || 0), 0);

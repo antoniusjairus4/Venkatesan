@@ -276,6 +276,10 @@ export const AuthenticatedView: React.FC<AuthenticatedViewProps> = ({ onLogout }
                 installments={installments}
                 onNewMember={() => setIsNewMemberModalOpen(true)}
                 onRecordPayment={(member) => handleOpenPayment(undefined, member)}
+                onRefresh={() => {
+                  loadAllData();
+                  loadAnalytics(selectedChitFilter);
+                }}
               />
             )
           )}

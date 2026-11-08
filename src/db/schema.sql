@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS chit_groups (
     status VARCHAR(20) DEFAULT 'UPCOMING',            -- 'UPCOMING', 'ACTIVE', 'COMPLETED'
     start_date DATE NOT NULL,
     end_date DATE,
+    tracking_start_month INT DEFAULT 1,               -- First month tracked in system (mid-cycle onboarding)
+    current_month INT DEFAULT 1,                      -- Active tracking month
+    is_mid_cycle BOOLEAN DEFAULT FALSE,               -- Whether onboarded mid-cycle
+    historical_settlement_notes TEXT,                 -- Notes confirming earlier months settled
     notes TEXT,
     moved_as_completed BOOLEAN DEFAULT FALSE,
     moved_as_completed_at TIMESTAMPTZ,

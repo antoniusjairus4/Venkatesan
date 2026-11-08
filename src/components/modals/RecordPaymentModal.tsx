@@ -12,7 +12,7 @@ import {
   Phone,
   Calendar,
 } from 'lucide-react';
-import { Installment, Member, recordPayment } from '@/lib/api';
+import { Installment, Member, recordPayment, fetchInstallments } from '@/lib/api';
 import { formatINR, createWhatsAppReceiptUrl, createMultiChitPaymentReceiptWhatsAppUrl } from '@/lib/whatsapp';
 import { createPaymentClearedSmsUrl, createMultiChitPaymentClearedSmsUrl } from '@/lib/sms';
 import { DueInstallmentDropdown } from './DueInstallmentDropdown';
@@ -34,6 +34,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   selectedInstallment,
   targetMember,
 }) => {
+  const [localInstallments, setLocalInstallments] = useState<Installment[]>(installments);
+  const [isLoadingInstallments, setIsLoadingInstallments] = useState(false);
   const [installmentId, setInstallmentId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
   const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -44,6 +46,10 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+
+  useEffect(() => {
+    setLocalInstallments(installments);
+  }, [installments]);
 
   // Success state with WhatsApp & SMS receipt trigger
   const [receiptData, setReceiptData] = useState<{
@@ -81,43 +87,68 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setExpectedPaymentDate('');
 
-    if (targetMember) {
-      // Find all installments belonging to this specific target member
-      const memberInsts = installments.filter((i) => i.member_id === targetMember.id);
-      // Prioritize an installment with pending dues, or fallback to the first one
-      const targetInst =
-        memberInsts.find(
-          (i) => Number(i.net_due_amount) - Number(i.paid_amount) > 0
-        ) || memberInsts[0];
+    const resolveInstallments = async () => {
+      let currentList = localInstallments;
 
-      if (targetInst) {
-        setInstallmentId(targetInst.id);
-        const remaining = Number(targetInst.net_due_amount) - Number(targetInst.paid_amount);
+      if (targetMember) {
+        const found = currentList.filter((i) => i.member_id === targetMember.id);
+        if (found.length === 0) {
+          try {
+            setIsLoadingInstallments(true);
+            const fetched = await fetchInstallments({ member_id: targetMember.id });
+            if (fetched.length > 0) {
+              setLocalInstallments((prev) => {
+                const map = new Map(prev.map((i) => [i.id, i]));
+                fetched.forEach((f) => map.set(f.id, f));
+                return Array.from(map.values());
+              });
+              currentList = fetched;
+            }
+          } catch (e) {
+            console.error('Failed to fetch installments for target member:', e);
+          } finally {
+            setIsLoadingInstallments(false);
+          }
+        }
+
+        const memberInsts = currentList.filter((i) => i.member_id === targetMember.id);
+        const targetInst =
+          memberInsts.find(
+            (i) => Number(i.net_due_amount) - Number(i.paid_amount) > 0
+          ) || memberInsts[0];
+
+        if (targetInst) {
+          setInstallmentId(targetInst.id);
+          const remaining = Number(targetInst.net_due_amount) - Number(targetInst.paid_amount);
+          setAmountPaid(String(Math.max(0, remaining)));
+        } else {
+          setInstallmentId('');
+          setAmountPaid('');
+          setError(`No pending installment found for ${targetMember.name}. Please ensure the chit bidding/auction has been recorded.`);
+        }
+      } else if (selectedInstallment) {
+        setInstallmentId(selectedInstallment.id);
+        const remaining = Number(selectedInstallment.net_due_amount) - Number(selectedInstallment.paid_amount);
         setAmountPaid(String(Math.max(0, remaining)));
-      } else {
-        setInstallmentId('');
-        setAmountPaid('');
+      } else if (currentList.length > 0 && !installmentId) {
+        const firstWithDues =
+          currentList.find(
+            (i) => Number(i.net_due_amount) - Number(i.paid_amount) > 0
+          ) ||
+          currentList.find((i) => i.status !== 'PAID') ||
+          currentList[0];
+        setInstallmentId(firstWithDues.id);
+        const remaining = Number(firstWithDues.net_due_amount) - Number(firstWithDues.paid_amount);
+        setAmountPaid(String(Math.max(0, remaining)));
       }
-    } else if (selectedInstallment) {
-      setInstallmentId(selectedInstallment.id);
-      const remaining = Number(selectedInstallment.net_due_amount) - Number(selectedInstallment.paid_amount);
-      setAmountPaid(String(Math.max(0, remaining)));
-    } else if (installments.length > 0 && !installmentId) {
-      const firstWithDues =
-        installments.find(
-          (i) => Number(i.net_due_amount) - Number(i.paid_amount) > 0
-        ) ||
-        installments.find((i) => i.status !== 'PAID') ||
-        installments[0];
-      setInstallmentId(firstWithDues.id);
-      const remaining = Number(firstWithDues.net_due_amount) - Number(firstWithDues.paid_amount);
-      setAmountPaid(String(Math.max(0, remaining)));
-    }
-  }, [isOpen, targetMember, selectedInstallment, installments]);
+    };
+
+    resolveInstallments();
+  }, [isOpen, targetMember, selectedInstallment]);
 
   const currentInst = useMemo(
-    () => installments.find((i) => i.id === installmentId),
-    [installments, installmentId]
+    () => localInstallments.find((i) => i.id === installmentId),
+    [localInstallments, installmentId]
   );
 
   // Active member identification
@@ -126,8 +157,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   // Find all chits/installments held by this active member
   const memberChits = useMemo(() => {
     if (!activeMemberId) return [];
-    return installments.filter((i) => i.member_id === activeMemberId);
-  }, [installments, activeMemberId]);
+    return localInstallments.filter((i) => i.member_id === activeMemberId);
+  }, [localInstallments, activeMemberId]);
 
   if (!isOpen) return null;
 
@@ -140,8 +171,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!installmentId || payAmt <= 0) {
-      setError('Please select a valid chit scheme/member and enter an amount.');
+    if (!installmentId) {
+      setError('Please select an active chit scheme installment for this payment.');
+      return;
+    }
+    if (payAmt <= 0) {
+      setError('Please enter a payment amount greater than ₹0.');
       return;
     }
 
@@ -457,7 +492,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   )}
                 </div>
                 <DueInstallmentDropdown
-                  installments={installments}
+                  installments={localInstallments}
                   selectedId={installmentId}
                   onSelect={(sel) => {
                     setInstallmentId(sel.id);

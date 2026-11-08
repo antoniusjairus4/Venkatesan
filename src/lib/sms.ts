@@ -502,3 +502,223 @@ export function createWinnerPayoutInstallmentSmsUrl(params: {
   const text = getWinnerPayoutInstallmentText(params);
   return createSmsUrl(params.phone, text);
 }
+
+/**
+ * 9. Multi-Chit Monthly Due Notification (Native SMS - Bilingual English & Tamil)
+ * When a member is enrolled in 2 or more chits or holds multiple tickets,
+ * sends ONE consolidated message with itemized breakdown per chit and grand total.
+ */
+export interface MultiChitDueItem {
+  groupName: string;
+  ticketNumber?: number | string;
+  monthNumber?: number;
+  installmentDue: number;
+  kasiru?: number;
+  baseAmount?: number;
+  paidAmount?: number;
+  remainingBalance?: number;
+  status?: string;
+}
+
+export function getMultiChitMonthlyBiddingDueText(params: {
+  memberName: string;
+  noticeDate?: string;
+  monthNumber?: number;
+  items: MultiChitDueItem[];
+}): string {
+  const nDate = params.noticeDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const monthLine = params.monthNumber ? `• Chit Month / சீட்டு மாதம்: ${params.monthNumber}-வது மாதம்\n` : '';
+
+  const itemLines = params.items.map((it) => {
+    const ticketText = it.ticketNumber ? ` (Member #${it.ticketNumber})` : '';
+    const mText = it.monthNumber && it.monthNumber !== params.monthNumber ? ` [Month ${it.monthNumber}]` : '';
+    const kasiruText = it.kasiru !== undefined && it.kasiru > 0 ? `\n    - காசுரு: ₹${it.kasiru.toLocaleString('en-IN')}` : '';
+    const remText = it.remainingBalance !== undefined && it.paidAmount !== undefined && it.paidAmount > 0
+      ? `\n    - செலுத்தியது: ₹${it.paidAmount.toLocaleString('en-IN')} | மீதி: ₹${it.remainingBalance.toLocaleString('en-IN')}`
+      : '';
+    return `• ${it.groupName}${ticketText}${mText}:
+    - சீட்டுக்கு கட்ட வேண்டிய பணம்: ₹${it.installmentDue.toLocaleString('en-IN')}${kasiruText}${remText}`;
+  }).join('\n');
+
+  const totalDue = params.items.reduce((sum, it) => sum + (it.installmentDue || 0), 0);
+  const totalRemaining = params.items.reduce((sum, it) => {
+    if (it.remainingBalance !== undefined) return sum + it.remainingBalance;
+    const paid = it.paidAmount || 0;
+    return sum + Math.max(0, (it.installmentDue || 0) - paid);
+  }, 0);
+
+  const balanceLine = totalRemaining !== totalDue
+    ? `\n• Balance to Pay / பாக்கி தொகை: ₹${totalRemaining.toLocaleString('en-IN')}`
+    : '';
+
+  return `வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Monthly Due Notice / மாதாந்திர தவணை அறிவிப்பு
+
+• Chit Date / சீட்டு தேதி: ${nDate}
+${monthLine}தங்களின் சீட்டுகள் தவணை விவரம் / Enrolled Chits:
+${itemLines}
+
+• Total Payable / மொத்த தவணை: ₹${totalDue.toLocaleString('en-IN')}${balanceLine}
+
+குறித்த தேதிக்குள் தங்களின் தவணைத் தொகையை செலுத்துமாறு கேட்டுக்கொள்கிறோம்.
+Payment modes: Cash, GPay, PhonePe, Bank Transfer.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Yethapur
+Ph: +91 99944 18186`;
+}
+
+export function createMultiChitMonthlyBiddingDueSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  noticeDate?: string;
+  monthNumber?: number;
+  items: MultiChitDueItem[];
+}): string {
+  const text = getMultiChitMonthlyBiddingDueText(params);
+  return createSmsUrl(params.phone, text);
+}
+
+/**
+ * 10. Multi-Chit Payment Receipt (Native SMS - Bilingual English & Tamil)
+ * When a member pays for 2 or more chits or holds multiple shares,
+ * sends ONE consolidated receipt covering all their enrolled chits.
+ */
+export interface MultiChitReceiptItem {
+  groupName: string;
+  ticketNumber?: number | string;
+  monthNumber?: number;
+  installmentDue: number;
+  amountPaid: number;
+  previouslyPaid?: number;
+  remainingBalance: number;
+  status?: string;
+}
+
+export function getMultiChitPaymentClearedText(params: {
+  memberName: string;
+  paymentDate?: string;
+  paymentMethod?: string;
+  receiptNumber?: string;
+  expectedPaymentDate?: string;
+  items: MultiChitReceiptItem[];
+}): string {
+  const pDate = params.paymentDate || new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const itemLines = params.items.map((it) => {
+    const ticketText = it.ticketNumber ? ` (Member #${it.ticketNumber})` : '';
+    const mText = it.monthNumber ? ` [Month ${it.monthNumber}]` : '';
+    const isSettled = it.remainingBalance <= 0;
+    const statusText = isSettled ? 'NIL (கணக்கு முடிக்கப்பட்டது. ✓)' : `₹${it.remainingBalance.toLocaleString('en-IN')}`;
+    return `• ${it.groupName}${ticketText}${mText}:
+    - தவணை தொகை: ₹${it.installmentDue.toLocaleString('en-IN')}
+    - வரவு: ₹${it.amountPaid.toLocaleString('en-IN')}
+    - மீதி: ${statusText}`;
+  }).join('\n');
+
+  const totalDue = params.items.reduce((sum, it) => sum + (it.installmentDue || 0), 0);
+  const totalPaid = params.items.reduce((sum, it) => sum + (it.amountPaid || 0), 0);
+  const totalRemaining = params.items.reduce((sum, it) => sum + Math.max(0, it.remainingBalance || 0), 0);
+  const allSettled = totalRemaining <= 0;
+
+  return `வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Payment Confirmation Receipt / தவணை வரவு ரசீது
+
+• Chit Date / சீட்டு தேதி: ${pDate}
+${params.paymentMethod ? `• Payment Mode / முறை: ${params.paymentMethod}\n` : ''}${params.receiptNumber ? `• Receipt / ரசீது எண்: ${params.receiptNumber}\n` : ''}
+தங்களின் சீட்டுகள் வரவு விவரம்:
+${itemLines}
+
+• மொத்த தவணை தொகை: ₹${totalDue.toLocaleString('en-IN')}
+• தற்போது செலுத்திய தொகை: ₹${totalPaid.toLocaleString('en-IN')}
+• மீதி செலுத்த வேண்டிய தொகை: ${allSettled ? 'NIL' : `₹${totalRemaining.toLocaleString('en-IN')}`}
+${allSettled ? '• கணக்கு முடிக்கப்பட்டது. ✓' : (params.expectedPaymentDate ? `• அடுத்த தவணை தேதி: ${params.expectedPaymentDate}` : '')}
+
+Thank you for your prompt payment!
+சரியான நேரத்தில் செலுத்தியமைக்கு மனமார்ந்த நன்றி!
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Yethapur
+Ph: +91 99944 18186`;
+}
+
+export function createMultiChitPaymentClearedSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  paymentDate?: string;
+  paymentMethod?: string;
+  receiptNumber?: string;
+  expectedPaymentDate?: string;
+  items: MultiChitReceiptItem[];
+}): string {
+  const text = getMultiChitPaymentClearedText(params);
+  return createSmsUrl(params.phone, text);
+}
+
+/**
+ * 11. Multi-Chit Overdue Notice (Native SMS - Bilingual English & Tamil)
+ * When a member has pending installments across 2 or more chits,
+ * sends ONE consolidated overdue notice listing each pending chit and total overdue.
+ */
+export interface MultiChitOverdueItem {
+  groupName: string;
+  ticketNumber?: number | string;
+  monthNumber?: number;
+  pendingAmount: number;
+  unpaidCount?: number;
+}
+
+export function getMultiChitOverdueReminderText(params: {
+  memberName: string;
+  items: MultiChitOverdueItem[];
+}): string {
+  const itemLines = params.items.map((it) => {
+    const ticketText = it.ticketNumber ? ` (Member #${it.ticketNumber})` : '';
+    const mText = it.monthNumber ? ` - Month ${it.monthNumber}` : '';
+    const countText = it.unpaidCount && it.unpaidCount > 1 ? ` (${it.unpaidCount} Months)` : '';
+    return `• ${it.groupName}${ticketText}${mText}: நிலுவை ₹${it.pendingAmount.toLocaleString('en-IN')}${countText}`;
+  }).join('\n');
+
+  const totalOverdue = params.items.reduce((sum, it) => sum + (it.pendingAmount || 0), 0);
+
+  return `வணக்கம் / Hello ${params.memberName},
+
+RAJAMANICKAM CHIT FUND
+Installment Overdue Notice / மாதாந்திர தவணை நிலுவை அறிவிப்பு
+
+தங்களின் நிலுவை சீட்டுகள் விவரம்:
+${itemLines}
+
+• Total Overdue / மொத்த நிலுவைத் தொகை: ₹${totalOverdue.toLocaleString('en-IN')}
+
+Kindly clear your pending installment at the earliest.
+தங்களின் மாதாந்திர சீட்டு தவணை நிலுவைத் தொகையை உடனே செலுத்துமாறு அன்புடன் கேட்டுக்கொள்கிறோம்.
+
+Payment Modes / செலுத்தும் வழிகள்: Cash, GPay, PhonePe, Bank Transfer.
+
+Regards / இங்ஙனம்,
+Rajamanickam Chit Fund, Yethapur
+Ph: +91 99944 18186`;
+}
+
+export function createMultiChitOverdueReminderSmsUrl(params: {
+  phone: string;
+  memberName: string;
+  items: MultiChitOverdueItem[];
+}): string {
+  const text = getMultiChitOverdueReminderText(params);
+  return createSmsUrl(params.phone, text);
+}

@@ -27,6 +27,7 @@ import {
   fetchMonthBiddingData,
   recordBidding,
   deleteBidding,
+  updateAuctionDate,
   moveChitGroupAsCompleted,
   MonthBiddingResponse,
   MonthSchemeBiddingData,
@@ -37,12 +38,15 @@ import {
   formatINR,
   createBiddingWinnerSmsUrl,
   createMonthlyBiddingDueSmsUrl,
+  createMultiChitMonthlyBiddingDueSmsUrl,
   getBiddingWinnerText,
   getMonthlyBiddingDueText,
+  getMultiChitMonthlyBiddingDueText,
 } from '@/lib/sms';
 import {
   createBiddingWinnerWhatsAppUrl,
   createMonthlyBiddingDueWhatsAppUrl,
+  createMultiChitMonthlyBiddingDueWhatsAppUrl,
 } from '@/lib/whatsapp';
 import { WinnerPayoutModal } from '../modals/WinnerPayoutModal';
 
@@ -78,6 +82,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         takenByMemberId: string;
         payoutAmount: string;
         agentPay: string;
+        auctionDate: string;
         notes: string;
         isSubmitting: boolean;
       }
@@ -87,12 +92,27 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
   // Modals state
   const [winnerModalScheme, setWinnerModalScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [membersModalScheme, setMembersModalScheme] = useState<MonthSchemeBiddingData | null>(null);
+  const [rosterNoticeDate, setRosterNoticeDate] = useState<string>('');
   const [payoutModalScheme, setPayoutModalScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [deleteConfirmScheme, setDeleteConfirmScheme] = useState<MonthSchemeBiddingData | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [moveConfirmGroup, setMoveConfirmGroup] = useState<ChitGroup | null>(null);
   const [isMovingCompleted, setIsMovingCompleted] = useState<boolean>(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [isUpdatingDate, setIsUpdatingDate] = useState<Record<string, boolean>>({});
+
+  const handleUpdateAuctionDate = async (schemeId: string, newDate: string) => {
+    if (!newDate) return;
+    try {
+      setIsUpdatingDate((prev) => ({ ...prev, [schemeId]: true }));
+      await updateAuctionDate(schemeId, selectedMonth, newDate);
+      await loadMonthData(selectedMonth);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to update chit payment date');
+    } finally {
+      setIsUpdatingDate((prev) => ({ ...prev, [schemeId]: false }));
+    }
+  };
 
   const handlePayoutUpdated = (updatedSummary: WinnerPayoutSummary) => {
     setData((prev) => {
@@ -135,6 +155,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
           takenByMemberId: string;
           payoutAmount: string;
           agentPay: string;
+          auctionDate: string;
           notes: string;
           isSubmitting: boolean;
         }
@@ -168,6 +189,9 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
           takenByMemberId: taker,
           payoutAmount: s.auction ? String(s.auction.payout_amount) : defaultPayout,
           agentPay: initialAgent,
+          auctionDate: s.auction?.auction_date
+            ? new Date(s.auction.auction_date).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0],
           notes: s.auction?.notes || '',
           isSubmitting: false,
         };
@@ -223,6 +247,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
         taken_by_member_id: inputs.isTakenByAnother && inputs.takenByMemberId ? inputs.takenByMemberId : inputs.winningMemberId,
         winner_payout_amount: payoutNum,
         agent_pay: finalAgentPay,
+        auction_date: inputs.auctionDate || new Date().toISOString().split('T')[0],
         notes: inputs.notes.trim() || undefined,
       });
 
@@ -557,6 +582,52 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   {/* ------------------------------------------------------------ */}
                   {!isFinalized ? (
                     <div className="space-y-4">
+                      {/* 0. Chit Payment / Auction Date (Calendar Picker) */}
+                      <div className="p-3 bg-forest-50/70 border border-forest-200/90 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-extrabold text-forest-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-forest-700" />
+                            <span>Chit Payment Date / சீட்டு தேதி *</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-forest-700 bg-white/90 px-2 py-0.5 rounded-md border border-forest-200">
+                            Select any day
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={currentInputs.auctionDate || new Date().toISOString().split('T')[0]}
+                            onChange={(e) =>
+                              setFormInputs((prev) => ({
+                                ...prev,
+                                [scheme.group.id]: {
+                                  ...prev[scheme.group.id],
+                                  auctionDate: e.target.value,
+                                },
+                              }))
+                            }
+                            required
+                            className="flex-1 px-3 py-2 bg-white border border-forest-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-forest-700 focus:ring-1 focus:ring-forest-700 cursor-pointer shadow-2xs"
+                            title="Chit payment date can vary - select any day from this calendar"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormInputs((prev) => ({
+                                ...prev,
+                                [scheme.group.id]: {
+                                  ...prev[scheme.group.id],
+                                  auctionDate: new Date().toISOString().split('T')[0],
+                                },
+                              }))
+                            }
+                            className="px-2.5 py-2 text-[10px] font-bold rounded-xl border border-forest-300 bg-white hover:bg-forest-100 text-forest-800 transition-colors cursor-pointer shrink-0"
+                          >
+                            Today
+                          </button>
+                        </div>
+                      </div>
+
                       {/* 1. Winner Selection Dropdown */}
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -923,6 +994,41 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         </div>
                       )}
 
+                      {/* Chit Payment Date - Select / Change from Calendar anytime */}
+                      <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-forest-100 text-forest-800 flex items-center justify-center shrink-0">
+                            <Calendar className="w-4 h-4 text-forest-700" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              Chit Payment Date (சீட்டு தேதி)
+                            </span>
+                            <span className="text-xs font-black text-slate-900">
+                              {scheme.auction?.auction_date
+                                ? new Date(scheme.auction.auction_date).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })
+                                : 'Today'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 self-end sm:self-center">
+                          <label className="text-[10px] font-bold text-slate-500">Change Date:</label>
+                          <input
+                            type="date"
+                            value={scheme.auction?.auction_date ? new Date(scheme.auction.auction_date).toISOString().split('T')[0] : ''}
+                            onChange={(e) => handleUpdateAuctionDate(scheme.group.id, e.target.value)}
+                            disabled={isUpdatingDate[scheme.group.id]}
+                            className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-800 hover:border-forest-600 focus:outline-none focus:ring-1 focus:ring-forest-600 cursor-pointer shadow-2xs"
+                            title="Select any day from calendar to change chit payment date"
+                          />
+                        </div>
+                      </div>
+
                       {/* 4 Metrics Grid with Agent's Pay */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
@@ -1128,6 +1234,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   winnerModalScheme.auction.taken_by_member_name !==
                     winnerModalScheme.auction.winning_member_name
               );
+              const winnerChitDate = winnerModalScheme.auction.auction_date
+                ? new Date(winnerModalScheme.auction.auction_date).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : undefined;
 
               return (
                 <>
@@ -1171,6 +1284,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                               monthNumber: selectedMonth,
                               payoutAmount: winnerModalScheme.auction!.payout_amount,
                               tasiruAmount: winnerModalScheme.auction!.bid_discount_amount,
+                              chitDate: winnerChitDate,
                             }),
                             'winner-text'
                           )
@@ -1198,6 +1312,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         monthNumber: selectedMonth,
                         payoutAmount: winnerModalScheme.auction.payout_amount,
                         tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                        chitDate: winnerChitDate,
                       })}
                     </pre>
                   </div>
@@ -1212,6 +1327,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         monthNumber: selectedMonth,
                         payoutAmount: winnerModalScheme.auction.payout_amount,
                         tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                        chitDate: winnerChitDate,
                       })}
                       className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-xs shadow-md transition-all text-center cursor-pointer"
                     >
@@ -1227,6 +1343,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                         monthNumber: selectedMonth,
                         payoutAmount: winnerModalScheme.auction.payout_amount,
                         tasiruAmount: winnerModalScheme.auction.bid_discount_amount,
+                        chitDate: winnerChitDate,
                       })}
                       target="_blank"
                       rel="noreferrer"
@@ -1272,10 +1389,54 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               </div>
               <button
                 onClick={() => setMembersModalScheme(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Chit Payment Date Calendar Bar */}
+            <div className="p-3 rounded-xl bg-forest-50/70 border border-forest-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-forest-700 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-forest-800 uppercase tracking-wider block">
+                    Chit Payment Date (சீட்டு தேதி)
+                  </span>
+                  <span className="text-xs font-black text-forest-950">
+                    {rosterNoticeDate
+                      ? new Date(rosterNoticeDate).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : membersModalScheme.auction?.auction_date
+                      ? new Date(membersModalScheme.auction.auction_date).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'Today'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 self-end sm:self-center">
+                <label className="text-[10px] font-bold text-forest-800">Select Date:</label>
+                <input
+                  type="date"
+                  value={rosterNoticeDate || (membersModalScheme.auction?.auction_date ? new Date(membersModalScheme.auction.auction_date).toISOString().split('T')[0] : '')}
+                  onChange={async (e) => {
+                    const newD = e.target.value;
+                    setRosterNoticeDate(newD);
+                    if (newD && membersModalScheme?.group?.id) {
+                      await handleUpdateAuctionDate(membersModalScheme.group.id, newD);
+                    }
+                  }}
+                  className="px-2.5 py-1 text-xs font-black rounded-lg border border-forest-300 bg-white text-forest-950 hover:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-600 cursor-pointer shadow-2xs"
+                  title="Chit payment date can vary - select any day from this calendar"
+                />
+              </div>
             </div>
 
             {/* Quick Template Copy Bar */}
@@ -1288,6 +1449,13 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                   const baseAmount = Number(membersModalScheme.group.installment_base_amount);
                   const dueAmount = membersModalScheme.auction!.net_installment_due;
                   const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
+                  const activeNoticeDate = rosterNoticeDate
+                    ? new Date(rosterNoticeDate).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : undefined;
                   handleCopy(
                     getMonthlyBiddingDueText({
                       memberName: '[Member Name]',
@@ -1297,6 +1465,7 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
                       installmentDue: dueAmount,
                       kasiru: kasiruBenefit,
                       baseAmount,
+                      noticeDate: activeNoticeDate,
                     }),
                     'roster-copy'
                   );
@@ -1317,81 +1486,210 @@ export const BiddingView: React.FC<BiddingViewProps> = ({ onGoToChits }) => {
               </button>
             </div>
 
-            {/* Members Roster List */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {membersModalScheme.subscribers.map((sub) => {
-                const baseAmount = Number(membersModalScheme.group.installment_base_amount);
-                const dueAmount = membersModalScheme.auction!.net_installment_due;
-                const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
+            {/* Members Roster List - Consolidates subscribers so multi-chit members get ONE message */}
+            {(() => {
+              const activeNoticeDate = rosterNoticeDate
+                ? new Date(rosterNoticeDate).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : membersModalScheme.auction?.auction_date
+                ? new Date(membersModalScheme.auction.auction_date).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : undefined;
 
-                const smsUrl = createMonthlyBiddingDueSmsUrl({
-                  phone: sub.member_phone,
-                  memberName: sub.member_name,
-                  groupName: membersModalScheme.group.name,
-                  monthNumber: selectedMonth,
-                  winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
-                  installmentDue: dueAmount,
-                  kasiru: kasiruBenefit,
-                  baseAmount,
-                });
+              // Group subscribers by member_id so multi-ticket holders are merged
+              const memberMap = new Map<
+                string,
+                {
+                  member_id: string;
+                  member_name: string;
+                  member_phone: string;
+                  whatsapp_phone?: string;
+                  tickets: number[];
+                }
+              >();
 
-                const waUrl = createMonthlyBiddingDueWhatsAppUrl({
-                  phone: sub.whatsapp_phone || sub.member_phone,
-                  memberName: sub.member_name,
-                  groupName: membersModalScheme.group.name,
-                  monthNumber: selectedMonth,
-                  winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
-                  installmentDue: dueAmount,
-                  kasiru: kasiruBenefit,
-                  baseAmount,
-                });
+              membersModalScheme.subscribers.forEach((sub) => {
+                if (!memberMap.has(sub.member_id)) {
+                  memberMap.set(sub.member_id, {
+                    member_id: sub.member_id,
+                    member_name: sub.member_name,
+                    member_phone: sub.member_phone,
+                    whatsapp_phone: sub.whatsapp_phone,
+                    tickets: [],
+                  });
+                }
+                memberMap.get(sub.member_id)!.tickets.push(sub.share_ticket_number);
+              });
 
-                return (
-                  <div
-                    key={sub.share_id}
-                    className="p-3 rounded-xl bg-white border border-slate-200/80 hover:border-forest-300 transition-colors flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
-                        #{sub.share_ticket_number}
-                      </span>
-                      <div>
-                        <strong className="text-xs font-bold text-slate-900 block">
-                          {sub.member_name}
-                        </strong>
-                        <span className="text-[11px] text-slate-500">{sub.member_phone}</span>
+              const groupedMembers = Array.from(memberMap.values());
+              const dueAmount = membersModalScheme.auction!.net_installment_due;
+              const baseAmount = Number(membersModalScheme.group.installment_base_amount);
+              const kasiruBenefit = Math.max(0, baseAmount - dueAmount);
+
+              return (
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {groupedMembers.map((member) => {
+                    // Check all active chits for this member across all schemes in Month selectedMonth
+                    const allActiveChits: Array<{
+                      groupName: string;
+                      ticketNumber?: number | string;
+                      monthNumber: number;
+                      installmentDue: number;
+                      kasiru?: number;
+                      baseAmount?: number;
+                    }> = [];
+
+                    if (data?.schemes) {
+                      data.schemes.forEach((sc) => {
+                        if (sc.auction) {
+                          const scDue = Number(sc.auction.net_installment_due);
+                          const scBase = Number(sc.group.installment_base_amount);
+                          const scKas = Math.max(0, scBase - scDue);
+                          const userShares = sc.subscribers.filter((s) => s.member_id === member.member_id);
+                          userShares.forEach((us) => {
+                            allActiveChits.push({
+                              groupName: sc.group.name,
+                              ticketNumber: us.share_ticket_number,
+                              monthNumber: selectedMonth,
+                              installmentDue: scDue,
+                              kasiru: scKas,
+                              baseAmount: scBase,
+                            });
+                          });
+                        }
+                      });
+                    }
+
+                    // Fallback to this scheme's tickets if no active cross-schemes
+                    const chitItems = allActiveChits.length > 0
+                      ? allActiveChits
+                      : member.tickets.map((t) => ({
+                          groupName: membersModalScheme.group.name,
+                          ticketNumber: t,
+                          monthNumber: selectedMonth,
+                          installmentDue: dueAmount,
+                          kasiru: kasiruBenefit,
+                          baseAmount,
+                        }));
+
+                    const isMultiChit = chitItems.length > 1;
+                    const totalDueForMember = chitItems.reduce((acc, it) => acc + it.installmentDue, 0);
+
+                    const smsUrl = isMultiChit
+                      ? createMultiChitMonthlyBiddingDueSmsUrl({
+                          phone: member.member_phone,
+                          memberName: member.member_name,
+                          noticeDate: activeNoticeDate,
+                          monthNumber: selectedMonth,
+                          items: chitItems,
+                        })
+                      : createMonthlyBiddingDueSmsUrl({
+                          phone: member.member_phone,
+                          memberName: member.member_name,
+                          groupName: membersModalScheme.group.name,
+                          monthNumber: selectedMonth,
+                          winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
+                          installmentDue: dueAmount,
+                          dividendSavings: kasiruBenefit,
+                          kasiru: kasiruBenefit,
+                          baseAmount,
+                          noticeDate: activeNoticeDate,
+                        });
+
+                    const waUrl = isMultiChit
+                      ? createMultiChitMonthlyBiddingDueWhatsAppUrl({
+                          phone: member.whatsapp_phone || member.member_phone,
+                          memberName: member.member_name,
+                          noticeDate: activeNoticeDate,
+                          monthNumber: selectedMonth,
+                          items: chitItems,
+                        })
+                      : createMonthlyBiddingDueWhatsAppUrl({
+                          phone: member.whatsapp_phone || member.member_phone,
+                          memberName: member.member_name,
+                          groupName: membersModalScheme.group.name,
+                          monthNumber: selectedMonth,
+                          winnerPayoutAmount: membersModalScheme.auction!.payout_amount,
+                          installmentDue: dueAmount,
+                          dividendSavings: kasiruBenefit,
+                          kasiru: kasiruBenefit,
+                          baseAmount,
+                          noticeDate: activeNoticeDate,
+                        });
+
+                    return (
+                      <div
+                        key={member.member_id}
+                        className={`p-3 rounded-xl border transition-colors flex items-center justify-between gap-3 ${
+                          isMultiChit
+                            ? 'bg-amber-50/50 border-amber-200/90 hover:border-amber-300'
+                            : 'bg-white border-slate-200/80 hover:border-forest-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`w-9 h-9 rounded-lg font-extrabold text-xs flex items-center justify-center shrink-0 ${
+                              isMultiChit
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {isMultiChit ? `${chitItems.length}C` : `#${member.tickets[0]}`}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <strong className="text-xs font-bold text-slate-900 block">
+                                {member.member_name}
+                              </strong>
+                              {isMultiChit && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                  {chitItems.length} Chits &bull; 1 Message
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500">
+                              {member.member_phone} &bull; {chitItems.map((c) => `${c.groupName} (#${c.ticketNumber})`).join(', ')}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-forest-900 mr-2">
+                            {formatINR(totalDueForMember)}
+                          </span>
+
+                          <a
+                            href={smsUrl}
+                            className="py-1.5 px-2.5 rounded-lg bg-forest-50 hover:bg-forest-700 text-forest-800 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+                            title={isMultiChit ? `Send 1 combined SMS for ${chitItems.length} chits` : 'Send SMS'}
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{isMultiChit ? 'SMS (1 Msg)' : 'SMS'}</span>
+                          </a>
+
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="py-1.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+                            title={isMultiChit ? `Send 1 combined WhatsApp for ${chitItems.length} chits` : 'Send WhatsApp'}
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>{isMultiChit ? 'WA (1 Msg)' : 'WA'}</span>
+                          </a>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-forest-900 mr-2">
-                        {formatINR(dueAmount)}
-                      </span>
-
-                      <a
-                        href={smsUrl}
-                        className="py-1.5 px-2.5 rounded-lg bg-forest-50 hover:bg-forest-700 text-forest-800 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
-                        title="Send SMS"
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span>SMS</span>
-                      </a>
-
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="py-1.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
-                        title="Send WhatsApp"
-                      >
-                        <Phone className="w-3 h-3" />
-                        <span>WA</span>
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <div className="pt-2 border-t border-slate-100 flex justify-end">
               <button

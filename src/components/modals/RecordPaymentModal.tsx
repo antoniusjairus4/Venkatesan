@@ -13,8 +13,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { Installment, Member, recordPayment } from '@/lib/api';
-import { formatINR, createWhatsAppReceiptUrl } from '@/lib/whatsapp';
-import { createPaymentClearedSmsUrl } from '@/lib/sms';
+import { formatINR, createWhatsAppReceiptUrl, createMultiChitPaymentReceiptWhatsAppUrl } from '@/lib/whatsapp';
+import { createPaymentClearedSmsUrl, createMultiChitPaymentClearedSmsUrl } from '@/lib/sms';
 import { DueInstallmentDropdown } from './DueInstallmentDropdown';
 
 interface RecordPaymentModalProps {
@@ -61,6 +61,15 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     status: string;
     paymentDate: string;
     expectedPaymentDate?: string;
+    multiChitItems?: Array<{
+      groupName: string;
+      ticketNumber?: number | string;
+      monthNumber: number;
+      installmentDue: number;
+      amountPaid: number;
+      remainingBalance: number;
+      status: string;
+    }>;
   } | null>(null);
 
   // Synchronize initial selection on modal open or prop change
@@ -151,6 +160,38 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       });
 
       if (currentInst) {
+        // If member has multiple chits enrolled, prepare multiChitItems
+        let multiChitItems: Array<{
+          groupName: string;
+          ticketNumber?: number | string;
+          monthNumber: number;
+          installmentDue: number;
+          amountPaid: number;
+          remainingBalance: number;
+          status: string;
+        }> | undefined = undefined;
+
+        if (memberChits.length > 1) {
+          multiChitItems = memberChits.map((item) => {
+            const isTarget = item.id === installmentId;
+            const itemDue = Number(item.net_due_amount);
+            const itemPaid = isTarget ? payAmt : Number(item.paid_amount);
+            const itemRem = isTarget
+              ? res.remaining_balance
+              : Math.max(0, itemDue - Number(item.paid_amount));
+            const itemStatus = isTarget ? res.rule_status : item.status;
+            return {
+              groupName: item.group_name || 'Chit Scheme',
+              ticketNumber: item.share_ticket_number,
+              monthNumber: item.month_number,
+              installmentDue: itemDue,
+              amountPaid: itemPaid,
+              remainingBalance: itemRem,
+              status: itemStatus,
+            };
+          });
+        }
+
         setReceiptData({
           phone: currentInst.member_phone || '',
           memberName: currentInst.member_name || 'Member',
@@ -166,6 +207,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           status: res.rule_status,
           paymentDate,
           expectedPaymentDate: expectedPaymentDate.trim() || undefined,
+          multiChitItems,
         });
       }
       onSuccess();
@@ -233,6 +275,24 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </div>
             </div>
 
+            {/* Multi-Chit Notice if enrolled in 2+ chits */}
+            {receiptData.multiChitItems && receiptData.multiChitItems.length > 1 && (
+              <div className="p-3 rounded-2xl bg-forest-50/60 border border-forest-200/80 text-left space-y-1.5 text-xs">
+                <div className="text-[11px] font-bold text-forest-900 flex items-center justify-between">
+                  <span>Enrolled Chits Combined (1 Message):</span>
+                  <span className="px-2 py-0.5 rounded-md bg-forest-700 text-white font-extrabold text-[10px]">
+                    {receiptData.multiChitItems.length} Chits Combined
+                  </span>
+                </div>
+                {receiptData.multiChitItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-slate-700 text-[11px] bg-white px-2.5 py-1 rounded-lg border border-forest-100">
+                    <span className="font-semibold">{item.groupName} (#{item.ticketNumber})</span>
+                    <span>Paid: {formatINR(item.amountPaid)} | Due: {formatINR(item.installmentDue)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {receiptData.remainingBalance > 0 && (
               <div className="text-xs text-amber-800 font-semibold bg-amber-50 p-2.5 rounded-xl border border-amber-200 space-y-1 text-left">
                 <p>Rule 1 Notice: Remaining balance of {formatINR(receiptData.remainingBalance)} is still pending for this month.</p>
@@ -245,52 +305,84 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </div>
             )}
 
-            {/* Inbuilt Mobile SMS & WhatsApp Buttons (Message 3 with Date) */}
+            {/* Inbuilt Mobile SMS & WhatsApp Buttons (Message 3 with Date - Consolidated if 2+ chits) */}
             {receiptData.phone && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                 <a
-                  href={createPaymentClearedSmsUrl({
-                    phone: receiptData.phone,
-                    memberName: receiptData.memberName,
-                    groupName: receiptData.groupName,
-                    monthNumber: receiptData.monthNumber,
-                    amountPaid: receiptData.amountPaid,
-                    previouslyPaid: receiptData.previouslyPaid,
-                    installmentDue: receiptData.installmentDue,
-                    remainingBalance: receiptData.remainingBalance,
-                    paymentMethod: receiptData.paymentMethod,
-                    paymentDate: receiptData.paymentDate,
-                    expectedPaymentDate: receiptData.expectedPaymentDate,
-                  })}
+                  href={
+                    receiptData.multiChitItems && receiptData.multiChitItems.length > 1
+                      ? createMultiChitPaymentClearedSmsUrl({
+                          phone: receiptData.phone,
+                          memberName: receiptData.memberName,
+                          paymentDate: receiptData.paymentDate,
+                          paymentMethod: receiptData.paymentMethod,
+                          receiptNumber: receiptData.receiptNumber,
+                          expectedPaymentDate: receiptData.expectedPaymentDate,
+                          items: receiptData.multiChitItems,
+                        })
+                      : createPaymentClearedSmsUrl({
+                          phone: receiptData.phone,
+                          memberName: receiptData.memberName,
+                          groupName: receiptData.groupName,
+                          monthNumber: receiptData.monthNumber,
+                          amountPaid: receiptData.amountPaid,
+                          previouslyPaid: receiptData.previouslyPaid,
+                          installmentDue: receiptData.installmentDue,
+                          remainingBalance: receiptData.remainingBalance,
+                          paymentMethod: receiptData.paymentMethod,
+                          paymentDate: receiptData.paymentDate,
+                          expectedPaymentDate: receiptData.expectedPaymentDate,
+                        })
+                  }
                   className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Send SMS Receipt</span>
+                  <span>
+                    {receiptData.multiChitItems && receiptData.multiChitItems.length > 1
+                      ? `Send SMS (${receiptData.multiChitItems.length} Chits - 1 Msg)`
+                      : 'Send SMS Receipt'}
+                  </span>
                 </a>
 
                 <a
-                  href={createWhatsAppReceiptUrl({
-                    phone: receiptData.phone,
-                    memberName: receiptData.memberName,
-                    groupName: receiptData.groupName,
-                    ticketNumber: receiptData.ticketNumber,
-                    monthNumber: receiptData.monthNumber,
-                    amountPaid: receiptData.amountPaid,
-                    previouslyPaid: receiptData.previouslyPaid,
-                    installmentDue: receiptData.installmentDue,
-                    paymentMethod: receiptData.paymentMethod,
-                    receiptNumber: receiptData.receiptNumber,
-                    remainingBalance: receiptData.remainingBalance,
-                    status: receiptData.status,
-                    paymentDate: receiptData.paymentDate,
-                    expectedPaymentDate: receiptData.expectedPaymentDate,
-                  })}
+                  href={
+                    receiptData.multiChitItems && receiptData.multiChitItems.length > 1
+                      ? createMultiChitPaymentReceiptWhatsAppUrl({
+                          phone: receiptData.phone,
+                          memberName: receiptData.memberName,
+                          paymentDate: receiptData.paymentDate,
+                          paymentMethod: receiptData.paymentMethod,
+                          receiptNumber: receiptData.receiptNumber,
+                          expectedPaymentDate: receiptData.expectedPaymentDate,
+                          items: receiptData.multiChitItems,
+                        })
+                      : createWhatsAppReceiptUrl({
+                          phone: receiptData.phone,
+                          memberName: receiptData.memberName,
+                          groupName: receiptData.groupName,
+                          ticketNumber: receiptData.ticketNumber,
+                          monthNumber: receiptData.monthNumber,
+                          amountPaid: receiptData.amountPaid,
+                          previouslyPaid: receiptData.previouslyPaid,
+                          installmentDue: receiptData.installmentDue,
+                          paymentMethod: receiptData.paymentMethod,
+                          receiptNumber: receiptData.receiptNumber,
+                          remainingBalance: receiptData.remainingBalance,
+                          status: receiptData.status,
+                          paymentDate: receiptData.paymentDate,
+                          expectedPaymentDate: receiptData.expectedPaymentDate,
+                        })
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
                   <Phone className="w-4 h-4" />
-                  <span>Send WhatsApp</span>
+                  <span>
+                    {receiptData.multiChitItems && receiptData.multiChitItems.length > 1
+                      ? `Send WhatsApp (${receiptData.multiChitItems.length} Chits - 1 Msg)`
+                      : 'Send WhatsApp'}
+                  </span>
                 </a>
               </div>
             )}
@@ -539,17 +631,43 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             {/* Payment Date & Optional Promised Next Payment Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Payment Date (செலுத்திய தேதி) *</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Payment Date (செலுத்திய தேதி) *</span>
+                  </label>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentDate(new Date().toISOString().split('T')[0])}
+                      className="text-forest-700 hover:text-forest-900 font-bold hover:underline cursor-pointer"
+                    >
+                      Today
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const y = new Date();
+                        y.setDate(y.getDate() - 1);
+                        setPaymentDate(y.toISOString().split('T')[0]);
+                      }}
+                      className="text-forest-700 hover:text-forest-900 font-bold hover:underline cursor-pointer"
+                    >
+                      Yesterday
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
                   required
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-forest-700 cursor-pointer"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Pick any custom payment date from calendar
+                </p>
               </div>
 
               {nextRemaining > 0 && (

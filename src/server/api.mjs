@@ -1485,6 +1485,45 @@ apiRouter.post('/bidding/record', async (req, res) => {
   }
 });
 
+// Update chit payment / auction date for a specific month
+apiRouter.patch('/bidding/auction-date', async (req, res) => {
+  try {
+    const { chit_group_id, month_number, auction_date } = req.body;
+    const mNum = parseInt(month_number, 10);
+    if (!chit_group_id || isNaN(mNum) || !auction_date) {
+      return res.status(400).json({ error: 'chit_group_id, month_number, and auction_date are required.' });
+    }
+
+    const [updated] = await sql`
+      UPDATE auctions
+      SET auction_date = ${auction_date}
+      WHERE chit_group_id = ${chit_group_id} AND month_number = ${mNum}
+      RETURNING *;
+    `;
+
+    if (!updated) {
+      return res.status(404).json({ error: 'No auction found for this chit group and month.' });
+    }
+
+    await sql`
+      INSERT INTO audit_logs (action, entity_id, entity_type, details)
+      VALUES (
+        'AUCTION_DATE_UPDATED', ${updated.id}, ${chit_group_id},
+        ${`Month ${mNum} auction/payment date updated to ${auction_date}`}
+      );
+    `;
+
+    res.json({
+      success: true,
+      auction: updated,
+      message: `Chit payment date updated to ${auction_date}`,
+    });
+  } catch (error) {
+    console.error('Error updating auction date:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 apiRouter.delete('/bidding/group/:chit_group_id/month/:month_number', async (req, res) => {
   try {
     const { chit_group_id, month_number } = req.params;

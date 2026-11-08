@@ -473,6 +473,27 @@ export async function deleteBidding(chitGroupId: string, monthNumber: number) {
   return res.json();
 }
 
+export async function updateAuctionDate(
+  chitGroupId: string,
+  monthNumber: number,
+  auctionDate: string
+): Promise<{ success: boolean; message: string; auction: any }> {
+  const res = await fetch('/api/bidding/auction-date', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chit_group_id: chitGroupId,
+      month_number: monthNumber,
+      auction_date: auctionDate,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update chit date' }));
+    throw new Error(err.error || 'Failed to update chit date');
+  }
+  return res.json();
+}
+
 export async function recordWinnerPayout(
   auctionId: string,
   data: {

@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Clock, ShieldAlert, Phone, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatINR, createOverdueReminderSmsUrl } from '@/lib/sms';
+import React, { useState, useMemo } from 'react';
+import { AlertTriangle, Clock, ShieldAlert, Phone, MessageSquare, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import {
+  formatINR,
+  createOverdueReminderSmsUrl,
+  createMultiChitOverdueReminderSmsUrl,
+} from '@/lib/sms';
+import {
+  createWhatsAppReminderUrl,
+  createMultiChitOverdueReminderWhatsAppUrl,
+} from '@/lib/whatsapp';
 
 interface DefaulterMember {
   memberId: string;
@@ -28,6 +36,17 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
 }) => {
   const [selectedBucket, setSelectedBucket] = useState<'ALL' | '1' | '2' | '3'>('ALL');
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // Group defaulters by phone or memberId to detect members with dues across 2 or more chits
+  const defaultersByPhone = useMemo(() => {
+    const map = new Map<string, DefaulterMember[]>();
+    defaultersList.forEach((m) => {
+      const key = (m.phone && m.phone.trim()) || m.memberId || m.memberName;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    });
+    return map;
+  }, [defaultersList]);
 
   const filteredList = defaultersList.filter((m) => {
     if (selectedBucket === '1') return m.unpaidCount === 1;
@@ -157,13 +176,54 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
           ) : (
             <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto rounded-xl border border-slate-100">
               {filteredList.map((m) => {
+                const key = (m.phone && m.phone.trim()) || m.memberId || m.memberName;
+                const memberChits = defaultersByPhone.get(key) || [m];
+                const isMultiChit = memberChits.length > 1;
+
+                const smsUrl = isMultiChit
+                  ? createMultiChitOverdueReminderSmsUrl({
+                      phone: m.phone,
+                      memberName: m.memberName,
+                      items: memberChits.map((c) => ({
+                        groupName: c.groupName,
+                        pendingAmount: c.pendingAmount,
+                        unpaidCount: c.unpaidCount,
+                      })),
+                    })
+                  : createOverdueReminderSmsUrl({
+                      phone: m.phone,
+                      memberName: m.memberName,
+                      groupName: m.groupName,
+                      pendingAmount: m.pendingAmount,
+                      unpaidCount: m.unpaidCount,
+                    });
+
+                const whatsAppUrl = isMultiChit
+                  ? createMultiChitOverdueReminderWhatsAppUrl({
+                      phone: m.phone,
+                      memberName: m.memberName,
+                      items: memberChits.map((c) => ({
+                        groupName: c.groupName,
+                        pendingAmount: c.pendingAmount,
+                        unpaidCount: c.unpaidCount,
+                      })),
+                    })
+                  : createWhatsAppReminderUrl({
+                      phone: m.phone,
+                      memberName: m.memberName,
+                      groupName: m.groupName,
+                      monthNumber: 1,
+                      netDue: m.pendingAmount,
+                      pendingBalance: m.pendingAmount,
+                    });
+
                 return (
                   <div
-                    key={m.memberId}
+                    key={`${m.memberId}-${m.groupName}`}
                     className="p-3 hover:bg-slate-50 flex items-center justify-between gap-3 text-xs"
                   >
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <strong className="text-slate-900">{m.memberName}</strong>
                         <span
                           className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase ${
@@ -176,6 +236,11 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
                         >
                           {m.unpaidCount} Month{m.unpaidCount > 1 ? 's' : ''} Due
                         </span>
+                        {isMultiChit && (
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-forest-100 text-forest-800 border border-forest-200">
+                            {memberChits.length} Chits (1 Msg)
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5">
                         {m.groupName} &bull; {m.phone}
@@ -199,18 +264,23 @@ export const DefaulterAgingBuckets: React.FC<DefaulterAgingBucketsProps> = ({
                           </a>
 
                           <a
-                            href={createOverdueReminderSmsUrl({
-                              phone: m.phone,
-                              memberName: m.memberName,
-                              groupName: m.groupName,
-                              pendingAmount: m.pendingAmount,
-                              unpaidCount: m.unpaidCount,
-                            })}
+                            href={smsUrl}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-forest-50 hover:bg-forest-100 text-forest-800 border border-forest-200 text-[11px] font-bold transition-colors cursor-pointer"
-                            title="Send Overdue Notice SMS to member"
+                            title={isMultiChit ? `Send 1 SMS covering all ${memberChits.length} overdue chits` : 'Send Overdue Notice SMS to member'}
                           >
                             <MessageSquare className="w-3 h-3 text-forest-700" />
-                            <span>SMS</span>
+                            <span>{isMultiChit ? 'SMS (1 Msg)' : 'SMS'}</span>
+                          </a>
+
+                          <a
+                            href={whatsAppUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
+                            title={isMultiChit ? `Send 1 WhatsApp covering all ${memberChits.length} overdue chits` : 'Send Overdue Notice WhatsApp to member'}
+                          >
+                            <Send className="w-3 h-3 text-emerald-600" />
+                            <span>{isMultiChit ? 'WA (1 Msg)' : 'WA'}</span>
                           </a>
                         </div>
                       )}

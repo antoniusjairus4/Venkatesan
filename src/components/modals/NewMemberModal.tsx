@@ -10,9 +10,14 @@ import {
   Ticket,
   Check,
   Layers,
+  Phone,
 } from 'lucide-react';
 import { ChitGroup, createMember, fetchChitGroups } from '@/lib/api';
-import { formatINR } from '@/lib/whatsapp';
+import {
+  formatINR,
+  createWhatsAppEnrollmentUrl,
+  createMultiEnrollmentWhatsAppUrl,
+} from '@/lib/whatsapp';
 import { createEnrollmentSmsUrl, createMultiEnrollmentSmsUrl } from '@/lib/sms';
 
 interface NewMemberModalProps {
@@ -254,9 +259,9 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
               )}
             </div>
 
-            {/* Native SMS Trigger */}
+            {/* Native SMS & WhatsApp Triggers (Consolidated into 1 Message if 2+ Schemes) */}
             {successData.enrolledSchemes.length > 0 && (
-              <div className="pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                 <a
                   href={
                     successData.enrolledSchemes.length === 1
@@ -274,10 +279,43 @@ export const NewMemberModal: React.FC<NewMemberModalProps> = ({
                           schemes: successData.enrolledSchemes,
                         })
                   }
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-sm shadow-md shadow-forest-700/20 transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-forest-700 hover:bg-forest-800 active:bg-forest-900 text-white font-bold text-xs shadow-md shadow-forest-700/20 transition-all cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Send Confirmation SMS (Messages App)</span>
+                  <span>
+                    {successData.enrolledSchemes.length > 1
+                      ? `Send SMS (${successData.enrolledSchemes.length} Chits - 1 Msg)`
+                      : 'Send Confirmation SMS'}
+                  </span>
+                </a>
+
+                <a
+                  href={
+                    successData.enrolledSchemes.length === 1
+                      ? createWhatsAppEnrollmentUrl({
+                          phone: successData.phone,
+                          memberName: successData.memberName,
+                          groupName: successData.enrolledSchemes[0].groupName,
+                          potValue: successData.enrolledSchemes[0].potValue,
+                          baseAmount: successData.enrolledSchemes[0].baseAmount,
+                          startDate: successData.enrolledSchemes[0].startDate,
+                        })
+                      : createMultiEnrollmentWhatsAppUrl({
+                          phone: successData.phone,
+                          memberName: successData.memberName,
+                          schemes: successData.enrolledSchemes,
+                        })
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>
+                    {successData.enrolledSchemes.length > 1
+                      ? `Send WhatsApp (${successData.enrolledSchemes.length} Chits - 1 Msg)`
+                      : 'Send WhatsApp'}
+                  </span>
                 </a>
               </div>
             )}
